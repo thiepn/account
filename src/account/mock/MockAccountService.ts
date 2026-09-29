@@ -98,7 +98,7 @@ export function createMockAccountService():AccountService{
     getApps:()=>connectedSummaries(),
     getAppData:()=>state.appData,
     setAppData:(items)=>{state={...state,appData:items};persist();},
-    getBackupCount:()=>0,
+    getBackupCount:async()=>(await backupService.listBackups()).length,
     getAccountStatus:()=>state.accountStatus,
     setAccountStatus:(accountStatus)=>{state={...state,accountStatus};persist();},
     addSecurityEvent:(title,description,type)=>{addEvent({type,category:"account",severity:"info",title,description});persist();},

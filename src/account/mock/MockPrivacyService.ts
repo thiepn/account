@@ -13,7 +13,7 @@ interface Context {
   getApps:()=>ConnectedAppSummary[];
   getAppData:()=>AppCloudDataDetail[];
   setAppData:(items:AppCloudDataDetail[])=>void;
-  getBackupCount:()=>number;
+  getBackupCount:()=>Promise<number>;
   getAccountStatus:()=> "active"|"restricted"|"deletion-pending";
   setAccountStatus:(status:"active"|"restricted"|"deletion-pending")=>void;
   addSecurityEvent:(title:string,description:string,type:string)=>void;
@@ -64,7 +64,7 @@ export function createMockPrivacyService(ctx:Context):PrivacyService{
       const completed={...operation,status:"completed" as const,completedAt:now()};state.appOperations=state.appOperations.map((item)=>item.id===operation.id?completed:item);persist();ctx.addSecurityEvent(`${plan.appName} cloud data deleted`,"Live cloud data was deleted. The app connection was not disconnected.","APP_DATA_DELETED");return completed;
     },
     async planAccountDeletion(){
-      const plan:AccountDeletionPlan={id:id("acctplan"),appCount:ctx.getApps().length,namespaceCount:ctx.getAppData().length,backupCount:ctx.getBackupCount(),blockers:[],warnings:["The mock lifecycle uses a seven-day grace period. No irreversible production deletion is performed by this frontend."],gracePeriodDays:7,requiresReauthentication:true,expiresAt:new Date(Date.now()+10*60_000).toISOString()};
+      const plan:AccountDeletionPlan={id:id("acctplan"),appCount:ctx.getApps().length,namespaceCount:ctx.getAppData().length,backupCount:await ctx.getBackupCount(),blockers:[],warnings:["The mock lifecycle uses a seven-day grace period. No irreversible production deletion is performed by this frontend."],gracePeriodDays:7,requiresReauthentication:true,expiresAt:new Date(Date.now()+10*60_000).toISOString()};
       state.accountPlans=[plan,...state.accountPlans];persist();return plan;
     },
     async requestAccountDeletion(planId,confirmation){

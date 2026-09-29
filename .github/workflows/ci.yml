@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,4 +20,24 @@ jobs:
       - run: corepack enable
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm test
       - run: pnpm build
+      - name: Assert production build contains no mock runtime marker
+        run: |
+          if grep -R "thiepn.account.mock.v6" dist >/dev/null 2>&1; then
+            echo "Mock Account runtime leaked into production assets"
+            exit 1
+          fi
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
