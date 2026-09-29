@@ -1,7 +1,16 @@
 import type { AccountCapabilities, AccountProfile, AuthState, ConnectedAppSummary, DataSummary, DeviceSummary, Overview, SecuritySummary } from "./types";
 
 export interface AuthService { getState():Promise<AuthState>; signIn():Promise<void>; signOut():Promise<void>; }
-export interface ProfileService { getProfile():Promise<AccountProfile>; updateProfile(input:Pick<AccountProfile,"displayName">):Promise<AccountProfile>; }
+export interface UpdateProfileInput {
+  displayName:string;
+  preferredLanguage:string;
+  timezone:string;
+}
+
+export interface ProfileService {
+  getProfile():Promise<AccountProfile>;
+  updateProfile(input:UpdateProfileInput):Promise<AccountProfile>;
+}
 export interface SecurityService { getSummary():Promise<SecuritySummary>; }
 export interface DeviceService { listDevices():Promise<DeviceSummary[]>; }
 export interface AppsService { listApps():Promise<ConnectedAppSummary[]>; }

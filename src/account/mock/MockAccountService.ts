@@ -54,7 +54,7 @@ export function createMockAccountService():AccountService{
     },
     profile:{
       async getProfile(){await delay();return {...state.profile};},
-      async updateProfile(input){await delay(420);state={...state,profile:{...state.profile,displayName:input.displayName.trim()}};persist();return {...state.profile};},
+      async updateProfile(input){await delay(420);state={...state,profile:{...state.profile,displayName:input.displayName.trim(),preferredLanguage:input.preferredLanguage,timezone:input.timezone}};persist();return {...state.profile};},
     },
     security:{async getSummary(){await delay();return security();}},
     devices:{async listDevices(){await delay();return makeDevices(scenario());}},

@@ -8,7 +8,7 @@ This file distinguishes **frontend implemented**, **backend partially existing**
 | P1 Design System | PARTIAL | Semantic tokens, responsive spacing/radius foundation and shared Panel component exist. Full primitive library remains. |
 | P2 Application Shell | IMPLEMENTED BASE | Responsive sidebar, compact one-row mobile header, drawer, routing, title updates, theme foundation and protected shell exist. |
 | P3 Mock Runtime & Overview | IMPLEMENTED BASE | Deterministic scenarios, persisted mock auth/profile state, Query layer and Overview exist. |
-| P4 Profile | NOT YET | Read-only mock view only. |
+| P4 Profile | IMPLEMENTED MOCK | Editable display name/language/timezone, read-only canonical identity, local theme preference, Zod validation, pending/error/success states and unsaved browser-exit protection are implemented behind AccountService. Internal-route discard protection and avatar upload remain for later P4 hardening. |
 | P5 Security | NOT YET | Mock summary only. |
 | P6 Devices/Sessions | NOT YET | Mock list only. |
 | P7 Apps/Permissions | NOT YET | Mock connected-app list only. |

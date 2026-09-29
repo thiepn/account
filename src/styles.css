@@ -26,3 +26,13 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--f
 .primary-button{min-height:44px;border:0;border-radius:12px;background:var(--primary);color:var(--primary-foreground);padding:0 18px;font-weight:650;cursor:pointer}
 .detail-grid{display:grid;gap:14px;margin:0}.detail-grid>div{display:grid;gap:3px}.detail-grid dt{color:var(--muted);font-size:13px}.detail-grid dd{margin:0;font-size:15px;overflow-wrap:anywhere}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
+
+.secondary-button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--foreground);padding:0 16px;font-weight:600;cursor:pointer}
+.secondary-button:hover:not(:disabled){background:var(--surface-hover)}
+.primary-button:disabled,.secondary-button:disabled{cursor:not-allowed;opacity:.5}
+.notice{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:12px 14px;font-size:14px}
+.notice-error{border-color:#d99;background:#fff4f4;color:#802020}.notice-success{border-color:#9cba9c;background:#f3fbf3;color:#255a25}
+:root[data-theme="dark"] .notice-error{border-color:#633;background:#28191b;color:#ffb5b5}:root[data-theme="dark"] .notice-success{border-color:#365e36;background:#172319;color:#afe0af}
+.profile-row{display:flex;align-items:flex-start;gap:16px}.profile-avatar{display:grid;width:52px;height:52px;flex:0 0 52px;place-items:center;border:1px solid var(--border);border-radius:999px;background:var(--accent-soft);font-size:18px;font-weight:700}
+.field{display:grid;gap:7px}.field label{font-size:14px;font-weight:600}.field input,.field select{min-height:44px;width:100%;border:1px solid var(--border);border-radius:10px;background:var(--background);color:var(--foreground);padding:0 12px;font:inherit}.field input:focus,.field select:focus{outline:3px solid color-mix(in srgb,var(--focus) 35%,transparent);border-color:var(--focus)}.field-help{margin:0;color:var(--muted);font-size:13px;line-height:18px}.field-error{margin:0;color:#a32626;font-size:13px;line-height:18px}.form-grid{display:grid;gap:20px}.form-actions{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--border);background:color-mix(in srgb,var(--background) 94%,transparent);padding:12px 0 max(12px,env(safe-area-inset-bottom));backdrop-filter:blur(12px)}
+@media (max-width:520px){.profile-row{align-items:center}.form-actions{justify-content:stretch}.form-actions>button{flex:1}}

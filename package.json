@@ -1,10 +1,31 @@
 {
-  "name":"thiepn-account",
-  "private":true,
-  "version":"0.1.0",
-  "type":"module",
-  "packageManager":"pnpm@11.19.0",
-  "scripts":{"dev":"vite","build":"tsc -b && vite build","typecheck":"tsc -b --pretty false","preview":"vite preview"},
-  "dependencies":{"@tanstack/react-query":"5.104.0","lucide-react":"1.48.0","react":"19.3.0","react-dom":"19.3.0","react-router-dom":"7.18.3","zod":"4.6.5"},
-  "devDependencies":{"@tailwindcss/vite":"4.3.3","@types/react":"19.3.0","@types/react-dom":"19.3.0","@vitejs/plugin-react":"6.1.1","tailwindcss":"4.3.3","typescript":"7.0.2","vite":"8.3.1"}
+  "name": "thiepn-account",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --pretty false",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.104.0",
+    "lucide-react": "1.48.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router-dom": "7.18.3",
+    "zod": "4.6.5",
+    "react-hook-form": "7.89.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
+  }
 }
