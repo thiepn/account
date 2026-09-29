@@ -38,7 +38,7 @@ export function ConfirmDialog({
       <h2 id="confirm-title">{title}</h2>
       <p id="confirm-description">{description}</p>
       <div className="modal-actions">
-        <Button ref={cancelRef as never} disabled={pending} onClick={onCancel}>Cancel</Button>
+        <Button ref={cancelRef} disabled={pending} onClick={onCancel}>Cancel</Button>
         <Button variant={danger?"danger":"primary"} disabled={pending} onClick={()=>void onConfirm()}>{pending?"Working…":confirmLabel}</Button>
       </div>
     </div>
