@@ -18,7 +18,7 @@ const now=()=>new Date().toISOString();
 const id=(prefix:string)=>`${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
 
 function snapshotFrom(items:AppCloudDataDetail[],type:BackupSnapshot["type"],backupId=id("bkp")):BackupSnapshot{
-  return {id:backupId,createdAt:now(),status:"verified",type,destination:{type:"mock",label:"Mock recovery storage"},sizeBytes:items.reduce((sum,item)=>sum+item.storageBytes,0),manifestVersion:1,integrity:{status:"verified",verifiedAt:now()},apps:items.map((item)=>({appId:item.appId,appName:item.appName,namespaceId:item.namespaceId,sourceGeneration:item.generation,sourceRevision:item.revision,schemaVersion:item.schemaVersion,sizeBytes:item.storageBytes}))};
+  return {id:backupId,createdAt:now(),status:"verified",type,destination:{type:"mock",label:"Mock recovery storage"},sizeBytes:items.reduce((sum,item)=>sum+item.storageBytes,0),manifestVersion:1,integrity:{status:"verified",verifiedAt:now()},apps:items.map((item)=>({appId:item.appId,appName:item.appName,namespaceId:item.namespaceId,sourceGeneration:item.generation??1,sourceRevision:item.revision??0,schemaVersion:item.schemaVersion??1,sizeBytes:item.storageBytes}))};
 }
 
 export function createMockBackupService(ctx:Context):BackupService{
@@ -63,7 +63,7 @@ export function createMockBackupService(ctx:Context):BackupService{
           if(!selected.has(item.appId))return item;
           const source=backup.apps.find((entry)=>entry.appId===item.appId);
           if(!source){results.push({appId:item.appId,status:"failed",verified:false,errorCode:"APP_NOT_IN_BACKUP"});return item;}
-          const newGeneration=item.generation+1;
+          const newGeneration=(item.generation??1)+1;
           results.push({appId:item.appId,status:"restored",verified:true,newGeneration});
           return {...item,generation:newGeneration,revision:1,updatedAt:now(),sync:{...item.sync,status:"pending" as const,lastDataChangeAt:now(),pendingChanges:0,error:undefined},clients:item.clients.map((client)=>({...client,status:"reconciliation-required" as const}))};
         });

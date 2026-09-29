@@ -12,3 +12,6 @@ These are not facts and must not be treated as implemented behavior.
 8. Backup retention after app-data/account deletion remains unresolved until P17/P18.
 
 9. RESOLVED: New Auth users now receive an Account Profile through the private `account_provision_profile_from_auth_user` trigger; frontend provisioning is not required.
+
+10. RESOLVED FOR INVENTORY: Account can expose production cloud-data metadata for Notes, Diet, TMS60, WORDSTRIKE and WTTN without a generic sync engine.
+11. OPEN: Common retry, conflict-resolution and sync-toggle commands remain app-specific until a trusted shared protocol implementation exists.

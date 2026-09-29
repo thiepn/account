@@ -112,3 +112,26 @@ Writes are not granted directly. Account mutations use owner-scoped RPCs:
 Required permissions cannot be independently revoked. Disconnect marks the control-plane connection disconnected and denies grants; it does not delete app cloud data.
 
 These records do not yet authorize Core namespace operations. Data-path enforcement must consume trusted app identity plus Account grant state in a later phase.
+
+
+## P16 cloud-data inventory
+
+Production Account data reads use `public.get_thiepn_account_data_inventory()`.
+
+The function is a narrow `auth.uid()`-scoped SECURITY DEFINER metadata boundary. It returns no app payloads.
+
+Current sources:
+
+- Notes: `notes_sync_records`
+- Diet Copilot: owner-scoped Diet tables
+- TMS60: `tms60_sync_state`
+- WORDSTRIKE: `wordstrike_player_profiles`
+- Word to the Nations: `wttn_private.saves`
+
+Returned storage bytes are approximate PostgreSQL row/payload bytes, not billing storage.
+
+Only TMS60 currently reports an explicit successful sync timestamp from a canonical sync-state source. Other apps expose cloud-data facts while reporting generic sync state as unavailable rather than manufacturing health.
+
+`retrySync()` and Account-level sync toggles deliberately remain unsupported in the real adapter until a common server command contract exists.
+
+The `account_sync_usage_connection` trigger bridges future `account_user_apps` usage into missing Account connections, but never changes an existing disconnected connection back to connected.

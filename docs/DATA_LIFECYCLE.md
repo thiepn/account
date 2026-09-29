@@ -1,0 +1,56 @@
+# THIEPN Account data lifecycle
+
+## Distinctions
+
+These states remain independent:
+
+```text
+Account connection
+≠ live cloud-data namespace
+≠ synchronization state
+≠ backup snapshot
+≠ local device data
+```
+
+Disconnecting an app changes Account access metadata and grants. It does not delete the app's live cloud data.
+
+## Production inventory
+
+P16 exposes metadata, not payload content.
+
+For each supported app the Account service may report:
+
+- whether a live namespace exists;
+- whether that namespace is active or retained after disconnect;
+- approximate stored row/payload bytes;
+- record count;
+- latest known cloud update;
+- source revision/schema version where the app actually has one;
+- sync status only when the source backend can support that claim.
+
+## Source semantics
+
+### Notes
+
+Cloud data: `notes_sync_records`.
+The Account surface can count/version server records, but cannot see pending local-only edits, so generic sync health is unavailable.
+
+### Diet Copilot
+
+Cloud data spans multiple owner-scoped Diet tables. Account aggregates metadata only. There is no generic Account sync command.
+
+### TMS60
+
+`tms60_sync_state` is an explicit revisioned cloud-sync state source, so the Account surface can report its latest server sync timestamp/revision.
+
+### WORDSTRIKE
+
+`wordstrike_player_profiles` exposes revisioned cloud profile state. No generic Account sync command is assumed.
+
+### Word to the Nations
+
+`wttn_private.saves` is a revisioned canonical cloud save with tombstone behavior. Deleted tombstones are not presented as live cloud data.
+
+## Core
+
+This inventory does not mean THIEPN Core Sync Protocol v1 has been implemented across the ecosystem. Core protocol rollout remains separate infrastructure work.

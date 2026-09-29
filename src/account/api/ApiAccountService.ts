@@ -61,6 +61,23 @@ const grantRowSchema=z.object({
   status:z.enum(["granted","denied"]),
   updated_at:z.string(),
 });
+
+const numericBigint=z.union([z.number(),z.string()]).transform((value)=>Number(value));
+const nullableNumericBigint=z.union([z.number(),z.string(),z.null()]).transform((value)=>value===null?null:Number(value));
+const inventoryRowSchema=z.object({
+  app_slug:z.string(),
+  app_name:z.string(),
+  namespace_id:z.string(),
+  namespace_status:z.enum(["active","retained","archived"]),
+  record_count:numericBigint,
+  storage_bytes:numericBigint,
+  updated_at:z.string().nullable(),
+  revision:nullableNumericBigint,
+  schema_version:z.number().nullable(),
+  sync_status:z.enum(["up-to-date","syncing","pending","delayed","offline","conflict","error","disabled","unavailable"]),
+  last_successful_sync_at:z.string().nullable(),
+  sync_supported:z.boolean(),
+});
 type ProfileRow=z.infer<typeof profileRowSchema>;
 
 const capabilities:AccountCapabilities={
@@ -72,7 +89,7 @@ const capabilities:AccountCapabilities={
   sessionRevocation:"others-only",
   deviceIdentity:"session-derived",
   appsRead:true,
-  dataRead:false,
+  dataRead:true,
   privacyRead:false,
 };
 
@@ -191,6 +208,37 @@ async function loadRealApps(supabase:ReturnType<typeof getAccountSupabaseClient>
       coreAppId:manifest?.core_app_id??undefined,
     };
   });
+}
+
+async function loadRealDataInventory(supabase:ReturnType<typeof getAccountSupabaseClient>){
+  const {data,error}=await supabase.rpc("get_thiepn_account_data_inventory");
+  if(error)throw mapRpcError(error,"DATA_INVENTORY_FAILED");
+  const parsed=z.array(inventoryRowSchema).safeParse(data??[]);
+  if(!parsed.success)throw normalizedError("DATA_INVENTORY_SCHEMA_INVALID","server",false);
+  return parsed.data.map((row)=>({
+    appId:row.app_slug,
+    appName:row.app_name,
+    namespaceId:row.namespace_id,
+    namespaceStatus:row.namespace_status,
+    revision:row.revision??undefined,
+    schemaVersion:row.schema_version??undefined,
+    storageBytes:row.storage_bytes,
+    storageApproximate:true,
+    recordCount:row.record_count,
+    updatedAt:row.updated_at??undefined,
+    sync:{
+      status:row.sync_status,
+      lastAttemptAt:row.updated_at??undefined,
+      lastSuccessfulSyncAt:row.last_successful_sync_at??undefined,
+      lastDataChangeAt:row.updated_at??undefined,
+    },
+    configuration:{
+      supported:row.sync_supported,
+      enabled:row.namespace_status==="active"&&row.sync_supported,
+      userControllable:false,
+    },
+    clients:[],
+  }));
 }
 
 async function listRealSessions(supabase:ReturnType<typeof getAccountSupabaseClient>){
@@ -382,7 +430,28 @@ export function createApiAccountService():AccountService{
         if(error)throw mapRpcError(error,"APP_DISCONNECT_FAILED");
       },
     },
-    data:{getSummary:()=>unsupported(),listAppData:()=>unsupported(),getAppData:()=>unsupported(),retrySync:()=>unsupported(),updateSyncConfiguration:()=>unsupported()},
+    data:{
+      async getSummary(){
+        const items=await loadRealDataInventory(supabase);
+        const attention=items.filter((item)=>["delayed","conflict","error"].includes(item.sync.status)).length;
+        const anyObservableSync=items.some((item)=>item.sync.status!=="unavailable");
+        return {
+          totalStorageBytes:items.reduce((sum,item)=>sum+item.storageBytes,0),
+          storageApproximate:true,
+          appCount:items.length,
+          syncStatus:attention?"attention" as const:anyObservableSync?"healthy" as const:"unavailable" as const,
+          attentionCount:attention,
+          backupStatus:"none" as const,
+        };
+      },
+      async listAppData(){return loadRealDataInventory(supabase);},
+      async getAppData(appId){
+        const items=await loadRealDataInventory(supabase);
+        return items.find((item)=>item.appId===appId)??null;
+      },
+      async retrySync(){return unsupported();},
+      async updateSyncConfiguration(){return unsupported();},
+    },
     backup:{getSummary:()=>unsupported(),listBackups:()=>unsupported(),getBackup:()=>unsupported(),createBackup:()=>unsupported(),getPolicy:()=>unsupported(),updatePolicy:()=>unsupported(),planRestore:()=>unsupported(),startRestore:()=>unsupported(),getRestoreOperation:()=>unsupported()},
     privacy:{getSummary:()=>unsupported(),requestExport:()=>unsupported(),listExports:()=>unsupported(),getExport:()=>unsupported(),getExportContent:()=>unsupported(),planAppDataDeletion:()=>unsupported(),startAppDataDeletion:()=>unsupported(),planAccountDeletion:()=>unsupported(),requestAccountDeletion:()=>unsupported(),getAccountDeletion:()=>unsupported(),cancelAccountDeletion:()=>unsupported()},
     capabilities:{async getCapabilities(){return capabilities;}},
@@ -394,7 +463,7 @@ export function createApiAccountService():AccountService{
         security:await service.security.getSummary(),
         devices:await service.devices.listDevices(),
         apps:await service.apps.listApps(),
-        data:{totalStorageBytes:0,appCount:0,syncStatus:"unavailable",attentionCount:0,backupStatus:"none"},
+        data:await service.data.getSummary(),
       };
     },
   };

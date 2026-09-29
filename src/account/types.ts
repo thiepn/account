@@ -51,8 +51,8 @@ export interface SyncConfiguration { supported:boolean; enabled:boolean; userCon
 export interface SyncClientSummary { id:string; label:string; lastSuccessfulSyncAt?:string|undefined; status:"up-to-date"|"pending"|"offline"|"reconciliation-required"; }
 export interface AppCloudDataSummary {
   appId:string; appName:string; namespaceId:string; namespaceStatus:"active"|"retained"|"archived";
-  generation:number; revision:number; schemaVersion:number;
-  storageBytes:number; recordCount?:number|undefined; updatedAt?:string|undefined;
+  generation?:number|undefined; revision?:number|undefined; schemaVersion?:number|undefined;
+  storageBytes:number; storageApproximate?:boolean|undefined; recordCount?:number|undefined; updatedAt?:string|undefined;
   sync:AppSyncState; configuration:SyncConfiguration;
 }
 export interface AppCloudDataDetail extends AppCloudDataSummary { clients:SyncClientSummary[]; }
@@ -103,7 +103,7 @@ export interface PrivacySummary {
   accountDeletion?:AccountDeletionRequest|undefined;
 }
 
-export interface DataSummary { totalStorageBytes:number; appCount:number; syncStatus:"healthy"|"attention"|"unavailable"; attentionCount:number; lastBackupAt?:string|undefined; backupStatus:"verified"|"failed"|"none"; }
+export interface DataSummary { totalStorageBytes:number; storageApproximate?:boolean|undefined; appCount:number; syncStatus:"healthy"|"attention"|"unavailable"; attentionCount:number; lastBackupAt?:string|undefined; backupStatus:"verified"|"failed"|"none"; }
 export interface Overview { identity:AccountIdentity; security:SecuritySummary; devices:DeviceSummary[]; apps:ConnectedAppSummary[]; data:DataSummary; capabilities:AccountCapabilities; }
 export interface AccountCapabilities {
   profileRead:boolean;
