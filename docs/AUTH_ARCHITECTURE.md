@@ -70,3 +70,10 @@ Supabase Auth's supported sign-out scopes are used as the session-revocation aut
 THIEPN Account currently exposes normal local sign-out and “sign out all other sessions.” It does not directly delete rows in the internal `auth.sessions` schema.
 
 The session list RPC is read-only. User-agent strings are treated as coarse client-environment metadata only.
+
+
+## P20 canonical OAuth origin
+
+Production OAuth redirects are never derived from the browser's current host. The release build requires `VITE_ACCOUNT_CANONICAL_ORIGIN=https://account.thiepn.dev` and uses that exact HTTPS origin for both normal Google sign-in and sensitive-action reauthentication callbacks.
+
+Development builds continue to use the local browser origin so real-adapter testing on localhost remains possible.

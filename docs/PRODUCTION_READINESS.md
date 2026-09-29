@@ -16,6 +16,7 @@ The release candidate must pass:
 - direct-backend boundary scan;
 - mock/scenario/dev-runtime bundle exclusion;
 - production Supabase-origin assertion;
+- production canonical OAuth-origin assertion for `https://account.thiepn.dev`;
 - Pages artifact creation from the exact green CI commit.
 
 ## Database/backend gates already verified

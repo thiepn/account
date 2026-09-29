@@ -56,6 +56,7 @@ jobs:
     timeout-minutes: 12
     env:
       VITE_ACCOUNT_SERVICE_MODE: real
+      VITE_ACCOUNT_CANONICAL_ORIGIN: https://account.thiepn.dev
       VITE_SUPABASE_URL: https://hycegznamzjhwinegaai.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_1rZzRPzfLMaAH5pIgCwIjA_19UPMIsR
     steps:
@@ -87,6 +88,7 @@ jobs:
             exit 1
           fi
           grep -R -q 'hycegznamzjhwinegaai.supabase.co' dist
+          grep -R -q 'https://account.thiepn.dev' dist
       - name: Add SPA deep-link fallback
         run: cp dist/index.html dist/404.html
       - name: Configure Pages

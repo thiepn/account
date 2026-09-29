@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AccountService } from "../service";
 import type { AccountCapabilities, AccountError, AccountIdentity, AccountProfile, Overview } from "../types";
-import { getAccountSupabaseClient } from "./supabase";
+import { getAccountOAuthOrigin, getAccountSupabaseClient } from "./supabase";
 import { consumeReturnTo, saveReturnTo } from "./returnTo";
 
 const profileRowSchema=z.object({
@@ -446,7 +446,7 @@ export function createApiAccountService():AccountService{
         sessionStorage.removeItem("thiepn.account.authPurpose");
         sessionStorage.removeItem("thiepn.account.expectedAccountId");
         saveReturnTo(returnTo??"/");
-        const {error}=await supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo:`${window.location.origin}/auth/callback`}});
+        const {error}=await supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo:`${getAccountOAuthOrigin()}/auth/callback`}});
         if(error)throw mapError(error,"OAUTH_START_FAILED");
         return {redirecting:true};
       },
@@ -481,7 +481,7 @@ export function createApiAccountService():AccountService{
         const {error}=await supabase.auth.signInWithOAuth({
           provider:"google",
           options:{
-            redirectTo:`${window.location.origin}/auth/callback`,
+            redirectTo:`${getAccountOAuthOrigin()}/auth/callback`,
             queryParams:{prompt:"login"},
           },
         });
