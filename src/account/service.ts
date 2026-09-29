@@ -5,6 +5,7 @@ export interface AuthService {
   signIn(returnTo?:string):Promise<{redirecting:boolean}>;
   completeCallback():Promise<string>;
   signOut():Promise<void>;
+  subscribe(listener:(state:AuthState)=>void):()=>void;
 }
 export interface UpdateProfileInput { displayName:string; preferredLanguage:string; timezone:string; }
 export interface ProfileService { getProfile():Promise<AccountProfile>; updateProfile(input:UpdateProfileInput):Promise<AccountProfile>; }

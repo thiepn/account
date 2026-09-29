@@ -32,10 +32,12 @@ function mapError(error:unknown,fallback="ACCOUNT_API_ERROR"):AccountError{
   return normalizedError(fallback,"server",true);
 }
 function profileFromRow(row:ProfileRow,userName?:string|null):AccountProfile{
+  const browserLanguage=typeof navigator!=="undefined"?navigator.language.split("-")[0]||"en":"en";
+  const browserTimezone=typeof Intl!=="undefined"?Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC":"UTC";
   return {
     displayName:row.display_name?.trim()||userName?.trim()||"THIEPN user",
-    preferredLanguage:row.preferred_language||"English",
-    timezone:row.timezone||"Europe/Berlin",
+    preferredLanguage:row.preferred_language||browserLanguage,
+    timezone:row.timezone||browserTimezone,
   };
 }
 function unsupported<T>():Promise<T>{return Promise.reject(normalizedError("CAPABILITY_UNAVAILABLE","unsupported",false));}
@@ -77,9 +79,12 @@ export function createApiAccountService():AccountService{
   const service:AccountService={
     auth:{
       async getState(){
+        const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
+        if(sessionError)throw mapError(sessionError,"AUTH_SESSION_READ_FAILED");
+        if(!sessionData.session)return "signed-out";
         const {data,error}=await supabase.auth.getUser();
-        if(error||!data.user)return "signed-out";
-        return "signed-in";
+        if(error)throw mapError(error,"AUTH_SESSION_VERIFY_FAILED");
+        return data.user?"signed-in":"session-expired";
       },
       async signIn(returnTo){
         saveReturnTo(returnTo??"/");
@@ -98,6 +103,10 @@ export function createApiAccountService():AccountService{
       async signOut(){
         const {error}=await supabase.auth.signOut({scope:"local"});
         if(error)throw mapError(error,"SIGN_OUT_FAILED");
+      },
+      subscribe(listener){
+        const {data}=supabase.auth.onAuthStateChange((_event,session)=>listener(session?"signed-in":"signed-out"));
+        return ()=>data.subscription.unsubscribe();
       },
     },
     profile:{

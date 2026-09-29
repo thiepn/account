@@ -14,7 +14,7 @@ P12 intentionally integrates only the backend capabilities already verified as s
 
 ### Canonical identity
 
-For the current backend, the authenticated Supabase Auth user UUID is provisionally adapted as `AccountId`. P13 must formally freeze that identity decision before broader ecosystem integration.
+The authenticated Supabase Auth user UUID is the canonical `AccountId` for the current THIEPN Account platform. Email and provider metadata are not ownership identifiers.
 
 ### Profile
 
@@ -45,7 +45,7 @@ Profile read/write is owner-RLS protected. The frontend independently scopes mut
 
 ### Missing-profile behavior
 
-No automatic auth-user provisioning trigger was found during the P12 audit. The adapter therefore returns `PROFILE_NOT_FOUND`; it does not silently create persistent Account records from the browser. P13 owns canonical Account/Profile provisioning.
+P13 migration `20260929205538_account_profile_provisioning_from_auth` now provisions one Account Profile row when a new `auth.users` identity is created and backfilled any previous missing rows. The frontend still treats an unexpected missing Profile as an integrity error rather than silently creating one.
 
 ## Conservative capabilities
 
