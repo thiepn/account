@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuthState } from "../account/hooks";
 import { AccountShell } from "../components/layout/AccountShell";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
-import { AppsPage, DataPage, DevicesPage, NotFoundPage, OverviewPage, PrivacyPage, ProfilePage, SecurityPage, SignInPage } from "../pages/Pages";
+import { AppsPage, DataPage, DeviceDetailPage, DevicesPage, NotFoundPage, OverviewPage, PrivacyPage, ProfilePage, SecurityActivityPage, SecurityEventPage, SecurityPage, SignInPage } from "../pages/Pages";
 
 function ProtectedAccount(){
   const auth=useAuthState();
@@ -16,7 +16,10 @@ export function App(){return <AppErrorBoundary><Routes>
     <Route path="/" element={<OverviewPage/>}/>
     <Route path="/profile" element={<ProfilePage/>}/>
     <Route path="/security" element={<SecurityPage/>}/>
+    <Route path="/security/activity" element={<SecurityActivityPage/>}/>
+    <Route path="/security/activity/:eventId" element={<SecurityEventPage/>}/>
     <Route path="/devices" element={<DevicesPage/>}/>
+    <Route path="/devices/:deviceId" element={<DeviceDetailPage/>}/>
     <Route path="/apps" element={<AppsPage/>}/>
     <Route path="/data" element={<DataPage/>}/>
     <Route path="/privacy" element={<PrivacyPage/>}/>
