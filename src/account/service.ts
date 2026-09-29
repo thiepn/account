@@ -1,6 +1,11 @@
 import type { AccountCapabilities, AccountProfile, AppCloudDataDetail, AppCloudDataSummary, AuthState, AccountDeletionPlan, AccountDeletionRequest, AppDataDeletionOperation, AppDataDeletionPlan, BackupOperation, BackupPolicy, BackupSnapshot, BackupSummary, ConnectedAppDetail, ConnectedAppSummary, DataSummary, DeviceSummary, ExportRequest, Overview, PrivacySummary, RestoreOperation, RestorePlan, SecurityEvent, SecuritySummary, SessionSummary } from "./types";
 
-export interface AuthService { getState():Promise<AuthState>; signIn():Promise<void>; signOut():Promise<void>; }
+export interface AuthService {
+  getState():Promise<AuthState>;
+  signIn(returnTo?:string):Promise<{redirecting:boolean}>;
+  completeCallback():Promise<string>;
+  signOut():Promise<void>;
+}
 export interface UpdateProfileInput { displayName:string; preferredLanguage:string; timezone:string; }
 export interface ProfileService { getProfile():Promise<AccountProfile>; updateProfile(input:UpdateProfileInput):Promise<AccountProfile>; }
 export interface SecurityService { getSummary():Promise<SecuritySummary>; listActivity():Promise<SecurityEvent[]>; getEvent(id:string):Promise<SecurityEvent|null>; }

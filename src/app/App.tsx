@@ -1,17 +1,20 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuthState } from "../account/hooks";
 import { AccountShell } from "../components/layout/AccountShell";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
-import { AppDataPage, AppDetailPage, AccountDeletionPage, AccountDeletionStatusPage, AppPrivacyPage, AppsPage, BackupDetailPage, BackupsPage, DataPage, ExportPage, DeviceDetailPage, DevicesPage, NotFoundPage, OverviewPage, PrivacyPage, ProfilePage, RestoreOperationPage, RestorePage, SecurityActivityPage, SecurityEventPage, SecurityPage, SignInPage } from "../pages/Pages";
+import { AppDataPage, AppDetailPage, AccountDeletionPage, AccountDeletionStatusPage, AppPrivacyPage, AppsPage, BackupDetailPage, BackupsPage, DataPage, ExportPage, DeviceDetailPage, DevicesPage, NotFoundPage, OverviewPage, PrivacyPage, ProfilePage, RestoreOperationPage, RestorePage, SecurityActivityPage, SecurityEventPage, SecurityPage, SignInPage, AuthCallbackPage, AuthErrorPage } from "../pages/Pages";
 
 function ProtectedAccount(){
   const auth=useAuthState();
+  const location=useLocation();
   if(auth.isLoading)return <main className="grid min-h-dvh place-items-center bg-[var(--background)] text-sm text-[var(--muted)]">Checking your account…</main>;
-  if(auth.data!=="signed-in")return <Navigate to="/auth/sign-in" replace/>;
+  if(auth.data!=="signed-in")return <Navigate to="/auth/sign-in" replace state={{returnTo:location.pathname+location.search}}/>;
   return <AccountShell/>;
 }
 export function App(){return <AppErrorBoundary><Routes>
   <Route path="/auth/sign-in" element={<SignInPage/>}/>
+  <Route path="/auth/callback" element={<AuthCallbackPage/>}/>
+  <Route path="/auth/error" element={<AuthErrorPage/>}/>
   <Route element={<ProtectedAccount/>}>
     <Route path="/" element={<OverviewPage/>}/>
     <Route path="/profile" element={<ProfilePage/>}/>

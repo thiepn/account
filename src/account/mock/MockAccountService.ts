@@ -105,7 +105,7 @@ export function createMockAccountService():AccountService{
   });
 
   return {
-    auth:{async getState(){await delay(120);return state.auth;},async signIn(){await delay(300);state={...state,auth:"signed-in"};persist();},async signOut(){await delay(220);state={...state,auth:"signed-out"};persist();}},
+    auth:{async getState(){await delay(120);return state.auth;},async signIn(returnTo){await delay(300);state={...state,auth:"signed-in"};persist();if(returnTo)sessionStorage.setItem("thiepn.account.returnTo",returnTo);return {redirecting:false};},async completeCallback(){return sessionStorage.getItem("thiepn.account.returnTo")??"/";},async signOut(){await delay(220);state={...state,auth:"signed-out"};persist();}},
     profile:{async getProfile(){await delay();return {...state.profile};},async updateProfile(input){mutationGuard();await delay(420);state={...state,profile:{...state.profile,displayName:input.displayName.trim(),preferredLanguage:input.preferredLanguage,timezone:input.timezone}};addEvent({type:"PROFILE_UPDATED",category:"account",severity:"info",title:"Profile updated",description:"Your THIEPN Account profile was updated."});persist();return {...state.profile};}},
     security:{async getSummary(){await delay();return security();},async listActivity(){await delay();return [...state.securityEvents];},async getEvent(id){await delay();return state.securityEvents.find((event)=>event.id===id)??null;}},
     devices:{
@@ -131,6 +131,6 @@ export function createMockAccountService():AccountService{
     backup:backupService,
     privacy:privacyService,
     capabilities:{async getCapabilities(){await delay(120);return capabilities;}},
-    async getOverview(){await delay(260);return {identity:{accountId:"acct_mock_0001",displayName:state.profile.displayName,primaryEmail:"jonathan@example.com",emailVerified:true,provider:"google",createdAt:"2026-06-27T08:36:21.000Z",status:state.accountStatus},security:security(),devices:devices(),apps:connectedSummaries(),data:data()};},
+    async getOverview(){await delay(260);return {identity:{accountId:"acct_mock_0001",displayName:state.profile.displayName,primaryEmail:"jonathan@example.com",emailVerified:true,provider:"google",createdAt:"2026-06-27T08:36:21.000Z",status:state.accountStatus},security:security(),devices:devices(),apps:connectedSummaries(),data:data(),capabilities};},
   };
 }

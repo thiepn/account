@@ -51,3 +51,8 @@ These are P19 inputs, not automatic vulnerabilities; each callable definer funct
 4. Add `ApiAccountService` and migrate the lowest-risk real identity/profile slice.
 5. Reconcile Account and Core registry ownership before P15.
 6. Do not surface the current immediate account-delete RPC as the final Privacy UI.
+
+
+## P12 integration decision
+
+The first real adapter now targets the existing Account Supabase Auth and `account_profiles` table only. No production database migration was required for this slice. Missing-profile provisioning remains an explicit P13 blocker because no auth-user provisioning trigger was found.

@@ -104,7 +104,7 @@ export interface PrivacySummary {
 }
 
 export interface DataSummary { totalStorageBytes:number; appCount:number; syncStatus:"healthy"|"attention"|"unavailable"; attentionCount:number; lastBackupAt?:string|undefined; backupStatus:"verified"|"failed"|"none"; }
-export interface Overview { identity:AccountIdentity; security:SecuritySummary; devices:DeviceSummary[]; apps:ConnectedAppSummary[]; data:DataSummary; }
+export interface Overview { identity:AccountIdentity; security:SecuritySummary; devices:DeviceSummary[]; apps:ConnectedAppSummary[]; data:DataSummary; capabilities:AccountCapabilities; }
 export interface AccountCapabilities { profileRead:boolean; profileWrite:boolean; securityRead:boolean; devicesRead:boolean; appsRead:boolean; dataRead:boolean; privacyRead:boolean; }
 export interface AccountError {
   code:string;

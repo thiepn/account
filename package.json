@@ -20,7 +20,8 @@
     "react-dom": "19.3.0",
     "react-router-dom": "7.18.3",
     "zod": "4.6.5",
-    "react-hook-form": "7.89.0"
+    "react-hook-form": "7.89.0",
+    "@supabase/supabase-js": "2.117.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
