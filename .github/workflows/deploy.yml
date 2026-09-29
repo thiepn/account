@@ -127,13 +127,13 @@ jobs:
         uses: actions/deploy-pages@v4
       - name: Verify deployed release SHA
         env:
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          CANONICAL_URL: https://account.thiepn.dev
           EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         shell: bash
         run: |
-          base="${PAGE_URL%/}"
+          base="${CANONICAL_URL%/}"
           for attempt in {1..12}; do
-            if curl --fail --silent --show-error --location "$base/release.json" -o /tmp/release.json; then
+            if curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 "$base/release.json" -o /tmp/release.json; then
               deployed="$(python -c 'import json; print(json.load(open("/tmp/release.json"))["commit"])')"
               if [ "$deployed" = "$EXPECTED_SHA" ]; then
                 echo "Verified deployed SHA: $deployed"
@@ -143,5 +143,5 @@ jobs:
             fi
             sleep 5
           done
-          echo "Live release SHA could not be verified"
+          echo "Canonical HTTPS release SHA could not be verified"
           exit 1
