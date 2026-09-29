@@ -1,8 +1,9 @@
 import { LogOut, Menu, Moon, Sun, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccountService } from "../../account/context";
+import { usePrivacySummary } from "../../account/hooks";
 import { accountRoutes, routeTitle } from "../../app/routes";
 import { useTheme } from "../../app/theme";
 
@@ -20,7 +21,7 @@ export function AccountShell(){
   const menuRef=useRef<HTMLButtonElement>(null);
   const drawerRef=useRef<HTMLDivElement>(null);
   const closeRef=useRef<HTMLButtonElement>(null);
-  const location=useLocation(); const navigate=useNavigate(); const service=useAccountService(); const queryClient=useQueryClient(); const theme=useTheme();
+  const location=useLocation(); const navigate=useNavigate(); const service=useAccountService(); const queryClient=useQueryClient(); const theme=useTheme(); const privacy=usePrivacySummary();
 
   useEffect(()=>{
     const title=routeTitle(location.pathname);
@@ -57,6 +58,7 @@ export function AccountShell(){
       <div className="ml-3 min-w-0 flex-1 truncate font-semibold">THIEPN Account</div>
       <button className="avatar-button" aria-label="Account menu">J</button>
     </header>
+    {privacy.data?.accountStatus==="deletion-pending"?<div className="border-b border-[var(--warning-border)] bg-[var(--warning-soft)] px-4 py-3 text-sm"><div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-2"><span>Account deletion is scheduled. Account-changing actions are restricted until you cancel it or deletion completes.</span><Link className="font-semibold underline underline-offset-2" to="/account/deletion/status">View deletion status</Link></div></div>:null}
     <div className="mx-auto flex min-h-dvh max-w-[1240px]">
       <aside className="hidden w-[232px] shrink-0 border-r border-[var(--border)] px-4 py-6 md:block">
         <div className="mb-8 px-2 text-lg font-semibold">THIEPN Account</div><Navigation/>
