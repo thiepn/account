@@ -89,7 +89,7 @@ export function createMockBackupService(ctx:Context):BackupService{
       const blockers=backup.status!=="verified"?["Backup is not verified."]:[];
       const valid=selectedApps.filter((appId)=>backup.apps.some((item)=>item.appId===appId));
       if(!valid.length)blockers.push("Select at least one app to restore.");
-      const warnings=valid.some((appId)=>{const live=ctx.getAppData().find((item)=>item.appId===appId);const snap=backup.apps.find((item)=>item.appId===appId);return Boolean(live&&snap&&live.revision>snap.sourceRevision);})?["Current cloud data is newer than this backup."]:[];
+      const warnings=valid.some((appId)=>{const live=ctx.getAppData().find((item)=>item.appId===appId);const snap=backup.apps.find((item)=>item.appId===appId);return Boolean(live&&snap&&(live.revision??0)>snap.sourceRevision);})?["Current cloud data is newer than this backup."]:[];
       const plan:RestorePlan={id:id("rplan"),backupId,selectedApps:valid,blockers,warnings,safetySnapshotRequired:true,requiresReauthentication:true,expiresAt:new Date(Date.now()+10*60_000).toISOString()};
       state={...state,restorePlans:[plan,...state.restorePlans]};persist();return plan;
     },
