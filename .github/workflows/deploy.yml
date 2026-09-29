@@ -1,0 +1,82 @@
+name: Deploy Account
+
+on:
+  workflow_run:
+    workflows: ["Account CI"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: account-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VITE_ACCOUNT_SERVICE_MODE: real
+      VITE_SUPABASE_URL: https://hycegznamzjhwinegaai.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_1rZzRPzfLMaAH5pIgCwIjA_19UPMIsR
+    steps:
+      - name: Resolve release SHA
+        id: release
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Verify production bundle
+        run: |
+          test -f dist/index.html
+          if grep -R -n -E 'thiepn\.account\.mock|MockAccountService|scenario=|failure injection|Development defaults to MockAccountService|/dev/runtime|/dev/shell' dist >/dev/null 2>&1; then
+            echo "Development/mock Account runtime leaked into release artifact"
+            exit 1
+          fi
+          grep -R -q 'hycegznamzjhwinegaai.supabase.co' dist
+      - name: Add SPA deep-link fallback
+        run: cp dist/index.html dist/404.html
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    if: >
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Account
+        id: deployment
+        uses: actions/deploy-pages@v4
