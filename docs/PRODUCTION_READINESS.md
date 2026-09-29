@@ -11,6 +11,7 @@ The release candidate must pass:
 - Account CI typecheck;
 - Vitest unit/runtime invariants;
 - Playwright Chromium, Firefox and WebKit smoke/lifecycle tests;
+- deterministic install from the committed `pnpm-lock.yaml` using `--frozen-lockfile`;
 - production Vite build;
 - direct-backend boundary scan;
 - mock/scenario/dev-runtime bundle exclusion;
