@@ -105,7 +105,7 @@ jobs:
             "canonicalOrigin": "https://account.thiepn.dev"
           }
           EOF
-          sha256sum dist/index.html dist/release.json > dist/SHA256SUMS
+          sha256sum dist/index.html dist/release.json | sed 's#  dist/#  #' > dist/SHA256SUMS
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
