@@ -1,6 +1,6 @@
 # P20 production readiness
 
-Release candidate: **1.0.0-rc.1**
+Release candidate: **1.0.0-rc.2**
 
 Target origin: **https://account.thiepn.dev**
 
@@ -17,7 +17,9 @@ The release candidate must pass:
 - mock/scenario/dev-runtime bundle exclusion;
 - production Supabase-origin assertion;
 - production canonical OAuth-origin assertion for `https://account.thiepn.dev`;
-- Pages artifact creation from the exact green CI commit.
+- Pages artifact creation from the exact green CI commit;
+- embedded `release.json` + SHA-256 manifest;
+- post-deploy verification that the live `release.json` commit equals the audited CI SHA.
 
 ## Database/backend gates already verified
 
@@ -75,4 +77,4 @@ These cannot be certified from repository code alone:
 
 Do **not** tag or describe the system as `v1.0.0` until the production origin passes the real OAuth and destructive-lifecycle smoke checks above.
 
-Until then the accurate status is **v1.0.0-rc.1**.
+Until then the accurate status is **v1.0.0-rc.2**.

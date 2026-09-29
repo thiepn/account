@@ -2,7 +2,7 @@
 
 User-facing account control center for the THIEPN ecosystem.
 
-**Release track:** `1.0.0-rc.1`
+**Release track:** `1.0.0-rc.2`
 
 **Production target:** `https://account.thiepn.dev`
 
@@ -74,7 +74,9 @@ GitHub Actions additionally verifies:
 - no direct backend access outside the Account adapter;
 - no mock/scenario/dev-runtime strings in the production bundle;
 - desktop/mobile lifecycle smoke tests;
-- production release artifacts are built in real-service mode.
+- production release artifacts are built in real-service mode;
+- each artifact contains `release.json` and `SHA256SUMS`;
+- after deployment, the workflow verifies the live release commit matches the green CI SHA.
 
 ## Deployment
 

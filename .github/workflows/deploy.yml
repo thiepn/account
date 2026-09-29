@@ -91,8 +91,21 @@ jobs:
           fi
           grep -R -q 'hycegznamzjhwinegaai.supabase.co' dist
           grep -R -q 'https://account.thiepn.dev' dist
-      - name: Add SPA deep-link fallback
-        run: cp dist/index.html dist/404.html
+      - name: Add release metadata and SPA deep-link fallback
+        shell: bash
+        run: |
+          cp dist/index.html dist/404.html
+          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          cat > dist/release.json <<EOF
+          {
+            "product": "THIEPN Account",
+            "version": "$version",
+            "commit": "${{ steps.release.outputs.sha }}",
+            "serviceMode": "real",
+            "canonicalOrigin": "https://account.thiepn.dev"
+          }
+          EOF
+          sha256sum dist/index.html dist/release.json > dist/SHA256SUMS
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -112,3 +125,23 @@ jobs:
       - name: Deploy Account
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify deployed release SHA
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        shell: bash
+        run: |
+          base="${PAGE_URL%/}"
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error --location "$base/release.json" -o /tmp/release.json; then
+              deployed="$(python -c 'import json; print(json.load(open("/tmp/release.json"))["commit"])')"
+              if [ "$deployed" = "$EXPECTED_SHA" ]; then
+                echo "Verified deployed SHA: $deployed"
+                exit 0
+              fi
+              echo "Deployment is serving $deployed; waiting for $EXPECTED_SHA"
+            fi
+            sleep 5
+          done
+          echo "Live release SHA could not be verified"
+          exit 1
