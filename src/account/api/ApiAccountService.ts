@@ -141,6 +141,8 @@ function mapRpcError(error:unknown,fallback:string):AccountError{
   if(error&&typeof error==="object"){
     const value=error as {code?:string;message?:string;status?:number};
     const message=value.message??"";
+    if(message.includes("reauthentication_required"))return normalizedError("REAUTH_REQUIRED","authentication",false);
+    if(message.includes("account_deletion_pending"))return normalizedError("ACCOUNT_DELETION_PENDING","conflict",false);
     if(message.includes("permission_not_mutable"))return normalizedError("PERMISSION_NOT_MUTABLE","conflict",false);
     if(message.includes("connection_not_active"))return normalizedError("CONNECTION_NOT_ACTIVE","conflict",false);
     if(message.includes("permission_not_found"))return normalizedError("PERMISSION_NOT_FOUND","validation",false);
@@ -441,6 +443,8 @@ export function createApiAccountService():AccountService{
         return data.user?"signed-in":"session-expired";
       },
       async signIn(returnTo){
+        sessionStorage.removeItem("thiepn.account.authPurpose");
+        sessionStorage.removeItem("thiepn.account.expectedAccountId");
         saveReturnTo(returnTo??"/");
         const {error}=await supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo:`${window.location.origin}/auth/callback`}});
         if(error)throw mapError(error,"OAUTH_START_FAILED");
@@ -449,10 +453,44 @@ export function createApiAccountService():AccountService{
       async completeCallback(){
         const code=new URLSearchParams(window.location.search).get("code");
         if(!code)throw normalizedError("OAUTH_CODE_MISSING","authentication",false);
+        const purpose=sessionStorage.getItem("thiepn.account.authPurpose");
+        const expectedAccountId=sessionStorage.getItem("thiepn.account.expectedAccountId");
         const {error}=await supabase.auth.exchangeCodeForSession(code);
         if(error)throw mapError(error,"OAUTH_CALLBACK_FAILED");
-        await getUser();
+        const user=await getUser();
+        sessionStorage.removeItem("thiepn.account.authPurpose");
+        sessionStorage.removeItem("thiepn.account.expectedAccountId");
+        if(purpose==="reauth"&&expectedAccountId&&user.id!==expectedAccountId){
+          await supabase.auth.signOut({scope:"local"});
+          throw normalizedError("ACCOUNT_CHANGED_DURING_REAUTH","authentication",false);
+        }
         return consumeReturnTo();
+      },
+      async isRecentlyAuthenticated(){
+        const {data,error}=await supabase.rpc("get_thiepn_account_auth_assurance");
+        if(error)throw mapRpcError(error,"AUTH_ASSURANCE_FAILED");
+        const parsed=z.object({recent:z.boolean()}).safeParse(data);
+        if(!parsed.success)throw normalizedError("AUTH_ASSURANCE_SCHEMA_INVALID","server",false);
+        return parsed.data.recent;
+      },
+      async reauthenticate(returnTo){
+        const user=await getUser();
+        saveReturnTo(returnTo??"/");
+        sessionStorage.setItem("thiepn.account.authPurpose","reauth");
+        sessionStorage.setItem("thiepn.account.expectedAccountId",user.id);
+        const {error}=await supabase.auth.signInWithOAuth({
+          provider:"google",
+          options:{
+            redirectTo:`${window.location.origin}/auth/callback`,
+            queryParams:{prompt:"login"},
+          },
+        });
+        if(error){
+          sessionStorage.removeItem("thiepn.account.authPurpose");
+          sessionStorage.removeItem("thiepn.account.expectedAccountId");
+          throw mapError(error,"REAUTH_START_FAILED");
+        }
+        return {redirecting:true};
       },
       async signOut(){
         const {error}=await supabase.auth.signOut({scope:"local"});

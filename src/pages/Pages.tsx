@@ -12,6 +12,7 @@ import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { EmptyState } from "../components/ui/EmptyState";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Notice } from "../components/ui/Notice";
+import { useSensitiveAction } from "../account/useSensitiveAction";
 
 function PageHeader({title,description}:{title:string;description:string}){return <header className="mb-7"><h1 className="text-[28px] font-semibold leading-9 tracking-[-0.02em]">{title}</h1><p className="mt-2 max-w-2xl text-[15px] leading-6 text-[var(--muted)]">{description}</p></header>;}
 function Loading(){return <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">Loading…</div>;}
@@ -235,6 +236,7 @@ export function AppDetailPage(){
   const revoke=useRevokePermission();
   const disconnect=useDisconnectApp();
   const navigate=useNavigate();
+  const runSensitive=useSensitiveAction();
   const [disconnectOpen,setDisconnectOpen]=useState(false);
   if(q.isLoading)return <Loading/>;
   if(!q.data)return <><PageHeader title="App not connected" description="This application does not have an Account connection."/><Link className="inline-link" to="/apps">Back to connected apps</Link></>;
@@ -247,7 +249,7 @@ export function AppDetailPage(){
     <div className="mt-4 space-y-4">
       <Panel title="Connection"><dl className="detail-grid"><div><dt>Status</dt><dd><StatusBadge tone={connection.status==="connected"?"success":connection.status==="limited"?"warning":"danger"}>{connection.status}</StatusBadge></dd></div>{connection.connectedAt?<div><dt>Connected</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(connection.connectedAt))}</dd></div>:null}{connection.lastUsedAt?<div><dt>Last used</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(connection.lastUsedAt))}</dd></div>:null}<div><dt>App ID</dt><dd className="font-mono text-sm">{app.id}</dd></div></dl></Panel>
       <Panel title="Account access" description="Required access is part of the connection. Optional access can be changed independently.">
-        <div className="permission-list">{app.availablePermissions.map((permission)=>{const status=granted.get(permission.id)??"denied";return <div className="permission-row" key={permission.id}><div><strong>{permission.name}</strong><small>{permission.description}</small></div><div className="permission-actions">{permission.required?<StatusBadge>Required</StatusBadge>:status==="granted"?<Button variant="ghost" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void revoke.mutateAsync({appId:app.id,permissionId:permission.id})}>Revoke</Button>:<Button variant="secondary" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void grant.mutateAsync({appId:app.id,permissionId:permission.id})}>Allow</Button>}<StatusBadge tone={status==="granted"?"success":"neutral"}>{status}</StatusBadge></div></div>;})}</div>
+        <div className="permission-list">{app.availablePermissions.map((permission)=>{const status=granted.get(permission.id)??"denied";const change=async(granted:boolean)=>{const action=()=>granted?grant.mutateAsync({appId:app.id,permissionId:permission.id}):revoke.mutateAsync({appId:app.id,permissionId:permission.id});if(permission.sensitivity==="sensitive")await runSensitive(action);else await action();};return <div className="permission-row" key={permission.id}><div><strong>{permission.name}</strong><small>{permission.description}{permission.sensitivity==="sensitive"?" · Identity confirmation required":""}</small></div><div className="permission-actions">{permission.required?<StatusBadge>Required</StatusBadge>:status==="granted"?<Button variant="ghost" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void change(false)}>Revoke</Button>:<Button variant="secondary" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void change(true)}>Allow</Button>}<StatusBadge tone={status==="granted"?"success":"neutral"}>{status}</StatusBadge></div></div>;})}</div>
       </Panel>
       <Panel title="Data & sync" description="Detailed live cloud-data state is owned by the P8 Data service."><Link className="inline-link" to={`/data?app=${encodeURIComponent(app.id)}`}>View data status</Link></Panel>
       {connection.status!=="disconnected"?<Panel title="Disconnect"><p className="text-sm text-[var(--muted)]">Disconnecting removes this app's Account access. It does not delete existing cloud data or backups.</p><Button variant="danger" onClick={()=>setDisconnectOpen(true)}>Disconnect {app.name}</Button></Panel>:null}
@@ -320,7 +322,7 @@ export function BackupDetailPage(){
 }
 
 export function RestorePage(){
-  const [params]=useSearchParams();const backupId=params.get("backup")??undefined;const backup=useBackup(backupId);const planMutation=usePlanRestore();const start=useStartRestore();const navigate=useNavigate();
+  const [params]=useSearchParams();const backupId=params.get("backup")??undefined;const backup=useBackup(backupId);const planMutation=usePlanRestore();const start=useStartRestore();const navigate=useNavigate();const runSensitive=useSensitiveAction();
   const [selected,setSelected]=useState<string[]>([]);
   useEffect(()=>{if(backup.data&&!selected.length)setSelected(backup.data.apps.map((item)=>item.appId));},[backup.data,selected.length]);
   if(!backupId)return <><PageHeader title="Restore" description="Choose a backup from Backup history before starting a restore."/><Link className="inline-link" to="/data/backups">Choose a backup</Link></>;
@@ -331,7 +333,7 @@ export function RestorePage(){
     <div className="space-y-4">
       <Notice tone="warning">Restore replaces selected live cloud data. A verified pre-restore safety snapshot is created first, and sync clients must reconcile afterward.</Notice>
       <Panel title="Select apps">{backup.data.apps.map((app)=><label className="check-row" key={app.appId}><input type="checkbox" checked={selected.includes(app.appId)} onChange={(event)=>setSelected((current)=>event.target.checked?[...current,app.appId]:current.filter((id)=>id!==app.appId))}/><span><strong>{app.appName}</strong><small>Backup generation {app.sourceGeneration}, revision {app.sourceRevision}</small></span></label>)}</Panel>
-      {!plan?<Button disabled={planMutation.isPending||!selected.length} onClick={()=>void planMutation.mutateAsync({backupId:backup.data!.id,selectedApps:selected})}>{planMutation.isPending?"Preparing…":"Review restore"}</Button>:<Panel title="Restore review">{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}<p className="text-sm text-[var(--muted)]">A safety snapshot will be created before {plan.selectedApps.length} app namespace{plan.selectedApps.length===1?" is":"s are"} replaced.</p><Button variant="danger" disabled={Boolean(plan.blockers.length)||start.isPending} onClick={async()=>{const operation=await start.mutateAsync(plan.id);navigate(`/data/restore/${operation.id}`);}}>{start.isPending?"Starting…":"Confirm restore"}</Button></Panel>}
+      {!plan?<Button disabled={planMutation.isPending||!selected.length} onClick={()=>void planMutation.mutateAsync({backupId:backup.data!.id,selectedApps:selected})}>{planMutation.isPending?"Preparing…":"Review restore"}</Button>:<Panel title="Restore review">{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}<p className="text-sm text-[var(--muted)]">A safety snapshot will be created before {plan.selectedApps.length} app namespace{plan.selectedApps.length===1?" is":"s are"} replaced.</p><Button variant="danger" disabled={Boolean(plan.blockers.length)||start.isPending} onClick={async()=>{const operation=await runSensitive(()=>start.mutateAsync(plan.id));if(operation)navigate(`/data/restore/${operation.id}`);}}>{start.isPending?"Starting…":"Confirm restore"}</Button></Panel>}
     </div>
   </>;
 }
@@ -377,7 +379,7 @@ export function ExportPage(){
 }
 
 export function AppPrivacyPage(){
-  const {appId}=useParams();const data=useAppData(appId);const planMutation=usePlanAppDataDeletion();const start=useStartAppDataDeletion();const navigate=useNavigate();
+  const {appId}=useParams();const data=useAppData(appId);const planMutation=usePlanAppDataDeletion();const start=useStartAppDataDeletion();const navigate=useNavigate();const runSensitive=useSensitiveAction();
   const [confirmOpen,setConfirmOpen]=useState(false);
   if(data.isLoading)return <Loading/>;
   if(!data.data)return <><PageHeader title="No cloud data" description="This app currently has no stored cloud-data namespace."/><Link className="inline-link" to="/privacy">Back to Privacy</Link></>;
@@ -387,17 +389,17 @@ export function AppPrivacyPage(){
       <Panel title="Stored cloud data"><dl className="detail-grid"><div><dt>Storage</dt><dd>{new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:2}).format(item.storageBytes/1_000_000)}</dd></div><div><dt>Connection</dt><dd>Deleting cloud data does not disconnect the app.</dd></div></dl></Panel>
       {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>void planMutation.mutateAsync(item.appId)}>{planMutation.isPending?"Preparing deletion…":"Plan cloud-data deletion"}</Button>:<Panel title="Deletion review">{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<p className="text-sm text-[var(--muted)]">{plan.backupImpact}</p><Button variant="danger" disabled={Boolean(plan.blockers.length)} onClick={()=>setConfirmOpen(true)}>Delete {plan.appName} cloud data</Button></Panel>}
     </div>
-    <ConfirmDialog open={confirmOpen} title={`Delete ${plan?.appName??item.appName} cloud data?`} description="Live cloud data will be removed. Local data on devices is not erased, the app remains connected, and backup handling follows the stated retention policy." confirmLabel="Delete cloud data" danger pending={start.isPending} onCancel={()=>setConfirmOpen(false)} onConfirm={async()=>{if(!plan)return;await start.mutateAsync(plan.id);setConfirmOpen(false);navigate("/privacy",{replace:true});}}/>
+    <ConfirmDialog open={confirmOpen} title={`Delete ${plan?.appName??item.appName} cloud data?`} description="Live cloud data will be removed. Local data on devices is not erased, the app remains connected, and backup handling follows the stated retention policy." confirmLabel="Delete cloud data" danger pending={start.isPending} onCancel={()=>setConfirmOpen(false)} onConfirm={async()=>{if(!plan)return;const result=await runSensitive(()=>start.mutateAsync(plan.id));if(!result)return;setConfirmOpen(false);navigate("/privacy",{replace:true});}}/>
   </>;
 }
 
 export function AccountDeletionPage(){
-  const planMutation=usePlanAccountDeletion();const request=useRequestAccountDeletion();const navigate=useNavigate();const [confirmation,setConfirmation]=useState("");
+  const planMutation=usePlanAccountDeletion();const request=useRequestAccountDeletion();const navigate=useNavigate();const runSensitive=useSensitiveAction();const [confirmation,setConfirmation]=useState("");
   const plan=planMutation.data;
   return <><PageHeader title="Delete THIEPN Account" description="Schedule deletion of your Account and managed cloud data."/>
     <div className="space-y-4">
       <Notice tone="warning">Account deletion uses a seven-day grace period. The legacy immediate-delete RPCs are disabled for signed-in clients.</Notice>
-      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>void planMutation.mutateAsync()}>{planMutation.isPending?"Preparing…":"Review Account deletion"}</Button>:<Panel title="Deletion review"><dl className="detail-grid"><div><dt>Connected apps</dt><dd>{plan.appCount}</dd></div><div><dt>Stored app namespaces</dt><dd>{plan.namespaceCount}</dd></div><div><dt>Backups</dt><dd>{plan.backupCount}</dd></div><div><dt>Grace period</dt><dd>{plan.gracePeriodDays} days</dd></div></dl>{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<div className="field mt-4"><label htmlFor="delete-confirmation">Type DELETE to schedule deletion</label><input id="delete-confirmation" value={confirmation} onChange={(event)=>setConfirmation(event.target.value)} autoComplete="off"/></div><Button className="mt-4" variant="danger" disabled={confirmation!=="DELETE"||request.isPending||Boolean(plan.blockers.length)} onClick={async()=>{const result=await request.mutateAsync({planId:plan.id,confirmation});navigate("/account/deletion/status",{replace:true,state:{id:result.id}});}}>{request.isPending?"Scheduling…":"Schedule Account deletion"}</Button></Panel>}
+      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>void planMutation.mutateAsync()}>{planMutation.isPending?"Preparing…":"Review Account deletion"}</Button>:<Panel title="Deletion review"><dl className="detail-grid"><div><dt>Connected apps</dt><dd>{plan.appCount}</dd></div><div><dt>Stored app namespaces</dt><dd>{plan.namespaceCount}</dd></div><div><dt>Backups</dt><dd>{plan.backupCount}</dd></div><div><dt>Grace period</dt><dd>{plan.gracePeriodDays} days</dd></div></dl>{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<div className="field mt-4"><label htmlFor="delete-confirmation">Type DELETE to schedule deletion</label><input id="delete-confirmation" value={confirmation} onChange={(event)=>setConfirmation(event.target.value)} autoComplete="off"/></div><Button className="mt-4" variant="danger" disabled={confirmation!=="DELETE"||request.isPending||Boolean(plan.blockers.length)} onClick={async()=>{const result=await runSensitive(()=>request.mutateAsync({planId:plan.id,confirmation}));if(result)navigate("/account/deletion/status",{replace:true,state:{id:result.id}});}}>{request.isPending?"Scheduling…":"Schedule Account deletion"}</Button></Panel>}
     </div>
   </>;
 }

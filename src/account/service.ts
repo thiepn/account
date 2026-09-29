@@ -4,6 +4,8 @@ export interface AuthService {
   getState():Promise<AuthState>;
   signIn(returnTo?:string):Promise<{redirecting:boolean}>;
   completeCallback():Promise<string>;
+  isRecentlyAuthenticated():Promise<boolean>;
+  reauthenticate(returnTo?:string):Promise<{redirecting:boolean}>;
   signOut():Promise<void>;
   subscribe(listener:(state:AuthState)=>void):()=>void;
 }

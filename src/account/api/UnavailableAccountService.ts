@@ -6,7 +6,7 @@ const fail=async()=>{throw error;};
 const domain=new Proxy({}, {get:()=>fail});
 
 export const unavailableAccountService:AccountService={
-  auth:{async getState(){return "signed-out";},signIn:fail,completeCallback:fail,async signOut(){},subscribe(){return ()=>{};}},
+  auth:{async getState(){return "signed-out";},signIn:fail,completeCallback:fail,isRecentlyAuthenticated:fail,reauthenticate:fail,async signOut(){},subscribe(){return ()=>{};}},
   profile:domain as AccountService["profile"],
   security:domain as AccountService["security"],
   devices:domain as AccountService["devices"],
