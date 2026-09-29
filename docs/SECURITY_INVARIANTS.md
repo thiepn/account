@@ -32,3 +32,12 @@
 - Authenticated-callable Account `SECURITY DEFINER` RPCs are intentional narrow boundaries and must each remain `auth.uid()` scoped.
 - The finalizer and private guard functions are owner-only.
 - Supabase leaked-password protection remains a P20 hosted Auth configuration requirement.
+
+
+## P19 certification disposition
+
+The Supabase `authenticated_security_definer_function_executable` lint is expected for the Account RPC API surface. It is not treated as automatically safe: each exposed Account RPC must remain narrowly scoped to `auth.uid()`, use an empty/fixed `search_path`, and expose no service-role secret or arbitrary owner selector.
+
+Current Account-specific missing-FK-index advisor findings were reduced to zero by the P19 migration.
+
+Supabase leaked-password protection is currently non-applicable because THIEPN Account exposes Google OAuth only. If password sign-in is ever enabled, leaked-password protection becomes a release-blocking Auth setting.

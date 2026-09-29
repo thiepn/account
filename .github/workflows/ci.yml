@@ -28,12 +28,23 @@ jobs:
           fi
       - run: pnpm test
       - run: pnpm build
-      - name: Assert production build contains no mock runtime marker
+      - name: Assert production build contains no development Account runtime
         run: |
-          if grep -R "thiepn.account.mock.v6" dist >/dev/null 2>&1; then
-            echo "Mock Account runtime leaked into production assets"
+          if grep -R -n -E 'thiepn\.account\.mock|MockAccountService|scenario=|failure injection|Development defaults to MockAccountService|/dev/runtime|/dev/shell' dist >/dev/null 2>&1; then
+            echo "Development/mock Account runtime leaked into production assets"
+            grep -R -n -E 'thiepn\.account\.mock|MockAccountService|scenario=|failure injection|Development defaults to MockAccountService|/dev/runtime|/dev/shell' dist || true
             exit 1
           fi
+      - name: Enforce Supabase adapter isolation
+        run: |
+          matches="$(grep -R -l -E '@supabase/supabase-js|createClient\(' src --include='*.ts' --include='*.tsx' || true)"
+          allowed="src/account/api/supabase.ts"
+          for file in $matches; do
+            if [ "$file" != "$allowed" ]; then
+              echo "Supabase client import/creation outside the approved adapter: $file"
+              exit 1
+            fi
+          done
 
   browser-smoke:
     runs-on: ubuntu-latest

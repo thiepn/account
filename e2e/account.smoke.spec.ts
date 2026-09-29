@@ -38,3 +38,26 @@ test("long content does not create page-level horizontal overflow at 320px",asyn
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth);
   expect(overflow).toBe(false);
 });
+
+
+test("deletion-pending scenario surfaces a global lifecycle warning",async({page})=>{
+  await page.goto("/?scenario=deletion-pending");
+  await expect(page.getByText("Account deletion is scheduled. Account-changing actions are restricted until you cancel it or deletion completes.")).toBeVisible();
+  await expect(page.getByRole("link",{name:"View deletion status"})).toBeVisible();
+});
+
+test("destructive account deletion keeps exact confirmation disabled until DELETE",async({page})=>{
+  await page.goto("/account/deletion?scenario=default");
+  await page.getByRole("button",{name:"Review Account deletion"}).click();
+  const schedule=page.getByRole("button",{name:"Schedule Account deletion"});
+  await expect(schedule).toBeDisabled();
+  await page.getByLabel("Type DELETE to schedule deletion").fill("delete");
+  await expect(schedule).toBeDisabled();
+  await page.getByLabel("Type DELETE to schedule deletion").fill("DELETE");
+  await expect(schedule).toBeEnabled();
+});
+
+test("invalid auth callback fails closed",async({page})=>{
+  await page.goto("/auth/callback?code=invalid");
+  await expect(page.getByText(/Sign-in/)).toBeVisible();
+});
