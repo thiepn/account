@@ -78,3 +78,10 @@ These cannot be certified from repository code alone:
 Do **not** tag or describe the system as `v1.0.0` until the production origin passes the real OAuth and destructive-lifecycle smoke checks above.
 
 Until then the accurate status is **v1.0.0-rc.2**.
+
+
+## External configuration verification
+
+On 2026-09-30, the operator reported the one-time Pages, custom-domain/DNS, and production OAuth configuration steps completed.
+
+This commit intentionally triggers the full Account CI → production artifact → Pages preflight → deploy → live `release.json` SHA verification chain. The production configuration is not considered certified until that workflow succeeds against `account.thiepn.dev`.
