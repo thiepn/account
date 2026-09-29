@@ -50,11 +50,32 @@ export interface AppSyncState { status:SyncStatus; lastAttemptAt?:string|undefin
 export interface SyncConfiguration { supported:boolean; enabled:boolean; userControllable:boolean; }
 export interface SyncClientSummary { id:string; label:string; lastSuccessfulSyncAt?:string|undefined; status:"up-to-date"|"pending"|"offline"|"reconciliation-required"; }
 export interface AppCloudDataSummary {
-  appId:string; appName:string; namespaceStatus:"active"|"retained"|"archived";
+  appId:string; appName:string; namespaceId:string; namespaceStatus:"active"|"retained"|"archived";
+  generation:number; revision:number; schemaVersion:number;
   storageBytes:number; recordCount?:number|undefined; updatedAt?:string|undefined;
   sync:AppSyncState; configuration:SyncConfiguration;
 }
 export interface AppCloudDataDetail extends AppCloudDataSummary { clients:SyncClientSummary[]; }
+
+export interface BackupAppSnapshot {
+  appId:string; appName:string; namespaceId:string; sourceGeneration:number; sourceRevision:number; schemaVersion:number; sizeBytes:number;
+}
+export interface BackupSnapshot {
+  id:string; createdAt:string; status:"creating"|"verified"|"unverified"|"failed"|"corrupted";
+  type:"automatic"|"manual"|"pre-restore"; destination:{type:"mock";label:string}; sizeBytes:number; apps:BackupAppSnapshot[];
+  integrity:{status:"pending"|"verified"|"failed";verifiedAt?:string|undefined}; manifestVersion:number;
+}
+export interface BackupOperation { id:string; status:"queued"|"collecting"|"writing"|"verifying"|"completed"|"failed"; startedAt:string; completedAt?:string|undefined; backupId?:string|undefined; }
+export interface BackupPolicy { enabled:boolean; frequency:"daily"|"weekly"|"manual-only"; includedApps:string[]; }
+export interface BackupSummary { lastSuccessful?:BackupSnapshot|undefined; activeOperation?:BackupOperation|undefined; policy:BackupPolicy; attention?:string|undefined; }
+export interface RestorePlan {
+  id:string; backupId:string; selectedApps:string[]; blockers:string[]; warnings:string[]; safetySnapshotRequired:boolean; requiresReauthentication:boolean; expiresAt:string;
+}
+export interface RestoreAppResult { appId:string; status:"restored"|"skipped"|"failed"|"rolled-back"; verified:boolean; newGeneration?:number|undefined; errorCode?:string|undefined; }
+export interface RestoreOperation {
+  id:string; backupId:string; selectedApps:string[]; status:"planning"|"creating-safety-snapshot"|"restoring"|"verifying"|"completed"|"partially-completed"|"failed"|"cancelled";
+  startedAt:string; completedAt?:string|undefined; appResults?:RestoreAppResult[]|undefined; safetyBackupId?:string|undefined;
+}
 
 export interface DataSummary { totalStorageBytes:number; appCount:number; syncStatus:"healthy"|"attention"|"unavailable"; attentionCount:number; lastBackupAt?:string|undefined; backupStatus:"verified"|"failed"|"none"; }
 export interface Overview { identity:AccountIdentity; security:SecuritySummary; devices:DeviceSummary[]; apps:ConnectedAppSummary[]; data:DataSummary; }

@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useApp, useAppData, useAppDataList, useApps, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useProfile, useRetrySync, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
+import { useApp, useAppData, useAppDataList, useApps, useBackup, useBackups, useBackupSummary, useCreateBackup, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, usePlanRestore, useProfile, useRestoreOperation, useRetrySync, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useStartRestore, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
 import { useAccountService } from "../account/context";
 import { useTheme } from "../app/theme";
 import { Panel } from "../components/ui/Panel";
@@ -257,7 +257,7 @@ export function DataPage(){
       <Panel title="Cloud data" description={`${summary.data.appCount} stored app namespace${summary.data.appCount===1?"":"s"} · ${new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:1}).format(summary.data.totalStorageBytes/1_000_000)}`}>
         {active.length?<div className="data-list">{active.map((item)=><Link className="data-row" key={item.appId} to={`/data/apps/${item.appId}`}><span><strong>{item.appName}</strong><small>{item.sync.lastSuccessfulSyncAt?`Last successful sync ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.sync.lastSuccessfulSyncAt))}`:"No successful sync yet"}</small></span><StatusBadge tone={syncTone(item.sync.status)}>{item.sync.status}</StatusBadge></Link>)}</div>:<EmptyState title="No cloud data" description="App cloud data will appear here after a connected app stores it."/>}
       </Panel>
-      <Panel title="Backup" description={summary.data.backupStatus}><p className="text-sm text-[var(--muted)]">Backup status is separate from cloud-sync status. P9 adds immutable history and controlled restore workflows.</p></Panel>
+      <Panel title="Backup" description={summary.data.backupStatus}><p className="text-sm text-[var(--muted)]">Backup status is separate from cloud-sync status.</p><Link className="inline-link" to="/data/backups">Manage backups</Link></Panel>
     </div>
     {retained.length?<div className="mt-4"><Panel title="Retained app data" description="Disconnected apps can retain cloud data until you explicitly delete it."><div className="data-list">{retained.map((item)=><Link className="data-row" key={item.appId} to={`/data/apps/${item.appId}`}><span><strong>{item.appName}</strong><small>Cloud data retained</small></span><StatusBadge>retained</StatusBadge></Link>)}</div></Panel></div>:null}
   </>;
@@ -281,6 +281,59 @@ export function AppDataPage(){
     <ConfirmDialog open={disableOpen} title={`Disable ${item.appName} cloud sync?`} description="New changes will stop synchronizing. Existing cloud data will remain stored and is not deleted." confirmLabel="Disable sync" pending={configure.isPending} onCancel={()=>setDisableOpen(false)} onConfirm={async()=>{await configure.mutateAsync({appId:item.appId,enabled:false});setDisableOpen(false);}}/>
   </>;
 }
+export function BackupsPage(){
+  const summary=useBackupSummary();const history=useBackups();const create=useCreateBackup();
+  if(summary.isLoading||history.isLoading)return <Loading/>;
+  return <><PageHeader title="Backups" description="Immutable recovery snapshots of selected app cloud data."/>
+    {summary.data?.attention?<Notice tone="warning">{summary.data.attention}</Notice>:null}
+    <div className="mt-4 space-y-4">
+      <Panel title="Automatic backup" description={summary.data?.policy.enabled?`${summary.data.policy.frequency} · Mock recovery storage`:"Off"}><div className="flex flex-wrap items-center justify-between gap-3"><p className="m-0 text-sm text-[var(--muted)]">{summary.data?.lastSuccessful?`Last verified backup ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(summary.data.lastSuccessful.createdAt))}`:"No verified backup yet."}</p><Button disabled={create.isPending||Boolean(summary.data?.activeOperation)} onClick={()=>void create.mutateAsync()}>{summary.data?.activeOperation?"Backup running…":create.isPending?"Starting…":"Back up now"}</Button></div></Panel>
+      <Panel title="Backup history">{history.data?.length?<div className="data-list">{history.data.map((backup)=><Link className="data-row" key={backup.id} to={`/data/backups/${backup.id}`}><span><strong>{backup.type==="pre-restore"?"Recovery snapshot":"Backup"}</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(backup.createdAt))} · {backup.apps.length} app{backup.apps.length===1?"":"s"}</small></span><StatusBadge tone={backup.status==="verified"?"success":backup.status==="corrupted"?"danger":"warning"}>{backup.status}</StatusBadge></Link>)}</div>:<EmptyState title="No backups yet" description="Create a manual backup or enable automatic backups."/ >}</Panel>
+    </div>
+  </>;
+}
+
+export function BackupDetailPage(){
+  const {backupId}=useParams();const q=useBackup(backupId);
+  if(q.isLoading)return <Loading/>;
+  if(!q.data)return <><PageHeader title="Backup unavailable" description="This backup could not be found."/><Link className="inline-link" to="/data/backups">Back to backups</Link></>;
+  const backup=q.data;
+  return <><PageHeader title={backup.type==="pre-restore"?"Recovery snapshot":"Backup"} description={new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(backup.createdAt))}/>
+    <div className="space-y-4">
+      <Panel title="Snapshot"><dl className="detail-grid"><div><dt>Status</dt><dd><StatusBadge tone={backup.status==="verified"?"success":"warning"}>{backup.status}</StatusBadge></dd></div><div><dt>Verification</dt><dd>{backup.integrity.status}</dd></div><div><dt>Size</dt><dd>{new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:2}).format(backup.sizeBytes/1_000_000)}</dd></div><div><dt>Destination</dt><dd>{backup.destination.label}</dd></div><div><dt>Backup ID</dt><dd className="font-mono text-sm">{backup.id}</dd></div></dl></Panel>
+      <Panel title="Apps"><div className="data-list">{backup.apps.map((app)=><div className="data-row" key={app.appId}><span><strong>{app.appName}</strong><small>Generation {app.sourceGeneration} · revision {app.sourceRevision}</small></span><StatusBadge tone="success">included</StatusBadge></div>)}</div></Panel>
+      {backup.status==="verified"&&backup.type!=="pre-restore"?<Link className="ui-button ui-button-primary no-underline" to={`/data/restore?backup=${encodeURIComponent(backup.id)}`}>Restore from this backup</Link>:null}
+    </div>
+  </>;
+}
+
+export function RestorePage(){
+  const [params]=useSearchParams();const backupId=params.get("backup")??undefined;const backup=useBackup(backupId);const planMutation=usePlanRestore();const start=useStartRestore();const navigate=useNavigate();
+  const [selected,setSelected]=useState<string[]>([]);
+  useEffect(()=>{if(backup.data&&!selected.length)setSelected(backup.data.apps.map((item)=>item.appId));},[backup.data,selected.length]);
+  if(!backupId)return <><PageHeader title="Restore" description="Choose a backup from Backup history before starting a restore."/><Link className="inline-link" to="/data/backups">Choose a backup</Link></>;
+  if(backup.isLoading)return <Loading/>;
+  if(!backup.data)return <><PageHeader title="Restore" description="The selected backup is unavailable."/><Link className="inline-link" to="/data/backups">Choose another backup</Link></>;
+  const plan=planMutation.data;
+  return <><PageHeader title="Restore cloud data" description="Restore selected app namespaces from a verified recovery snapshot."/>
+    <div className="space-y-4">
+      <Notice tone="warning">Restore replaces selected live cloud data. A verified pre-restore safety snapshot is created first, and sync clients must reconcile afterward.</Notice>
+      <Panel title="Select apps">{backup.data.apps.map((app)=><label className="check-row" key={app.appId}><input type="checkbox" checked={selected.includes(app.appId)} onChange={(event)=>setSelected((current)=>event.target.checked?[...current,app.appId]:current.filter((id)=>id!==app.appId))}/><span><strong>{app.appName}</strong><small>Backup generation {app.sourceGeneration}, revision {app.sourceRevision}</small></span></label>)}</Panel>
+      {!plan?<Button disabled={planMutation.isPending||!selected.length} onClick={()=>void planMutation.mutateAsync({backupId:backup.data!.id,selectedApps:selected})}>{planMutation.isPending?"Preparing…":"Review restore"}</Button>:<Panel title="Restore review">{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}<p className="text-sm text-[var(--muted)]">A safety snapshot will be created before {plan.selectedApps.length} app namespace{plan.selectedApps.length===1?" is":"s are"} replaced.</p><Button variant="danger" disabled={Boolean(plan.blockers.length)||start.isPending} onClick={async()=>{const operation=await start.mutateAsync(plan.id);navigate(`/data/restore/${operation.id}`);}}>{start.isPending?"Starting…":"Confirm restore"}</Button></Panel>}
+    </div>
+  </>;
+}
+
+export function RestoreOperationPage(){
+  const {operationId}=useParams();const q=useRestoreOperation(operationId);
+  if(q.isLoading)return <Loading/>;
+  if(!q.data)return <><PageHeader title="Restore unavailable" description="This restore operation could not be found."/><Link className="inline-link" to="/data/backups">Back to backups</Link></>;
+  const operation=q.data;const terminal=["completed","partially-completed","failed","cancelled"].includes(operation.status);
+  return <><PageHeader title={terminal?"Restore result":"Restore in progress"} description="The restore runs in the Account service and survives page navigation."/>
+    <Panel title="Restore operation"><div className="restore-status"><StatusBadge tone={operation.status==="completed"?"success":operation.status==="failed"?"danger":"warning"}>{operation.status}</StatusBadge><p>{operation.status==="creating-safety-snapshot"?"Creating recovery snapshot…":operation.status==="restoring"?"Replacing selected cloud namespaces…":operation.status==="verifying"?"Verifying restored state…":operation.status==="completed"?"Restore completed and verified.":"Preparing restore…"}</p></div>{operation.appResults?<div className="data-list">{operation.appResults.map((result)=><div className="data-row" key={result.appId}><span><strong>{result.appId}</strong><small>{result.newGeneration?`New generation ${result.newGeneration}`:"No generation change"}</small></span><StatusBadge tone={result.verified?"success":"danger"}>{result.status}</StatusBadge></div>)}</div>:null}{operation.safetyBackupId?<p className="text-sm text-[var(--muted)]">Safety snapshot: <Link className="inline-link" to={`/data/backups/${operation.safetyBackupId}`}>{operation.safetyBackupId}</Link></p>:null}</Panel>
+  </>;
+}
+
 export function PrivacyPage(){const q=usePrivacySummary();if(q.isLoading)return <Loading/>;return <><PageHeader title="Privacy" description="Export, deletion and Account lifecycle controls."/><Panel title="Lifecycle controls"><dl className="detail-grid"><div><dt>Export</dt><dd>{q.data?.exportAvailable?"Available in mock contract":"Unavailable"}</dd></div><div><dt>App-data deletion</dt><dd>{q.data?.appDeletionAvailable?"Available":"Not connected yet"}</dd></div><div><dt>Account deletion</dt><dd>{q.data?.accountDeletionAvailable?"Available":"Not connected yet"}</dd></div></dl></Panel></>;}
 
 export function SignInPage(){const service=useAccountService();const navigate=useNavigate();const queryClient=useQueryClient();async function signIn(){await service.auth.signIn();await queryClient.invalidateQueries({queryKey:["auth"]});navigate("/",{replace:true});}return <main className="grid min-h-dvh place-items-center bg-[var(--background)] px-4"><div className="w-full max-w-[420px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7 shadow-sm"><h1 className="text-2xl font-semibold">THIEPN Account</h1><p className="mt-2 text-sm text-[var(--muted)]">Sign in to manage your account.</p><button className="primary-button mt-6 w-full" onClick={signIn}>Continue with Google</button><p className="mt-4 text-xs text-[var(--muted)]">Development currently uses MockAccountService. Production will never fall back to mock authentication.</p></div></main>;}
