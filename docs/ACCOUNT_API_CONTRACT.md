@@ -163,3 +163,46 @@ TMS60 restore is browser-executable through `restore_thiepn_tms60_backup()`. The
 Diet snapshots are visible and verified but cannot be destructively applied from the browser. The existing Diet backend explicitly requires an operator-reviewed restore runbook/maintenance window, so the Account restore plan returns a blocker.
 
 No generic encryption/provider-storage claim is made by this phase.
+
+
+## P18 privacy and deletion lifecycle
+
+### Account metadata exports
+
+`request_thiepn_account_export()` captures the existing platform metadata snapshot into a private payload table.
+
+Public owner-readable rows contain metadata only:
+
+- request ID/scope;
+- timestamps;
+- expiry;
+- byte size.
+
+The actual JSON payload is only returned through `get_thiepn_account_export_payload()` for the owning user before the 24-hour expiry.
+
+The export explicitly identifies itself as `thiepn-account-metadata`; app-owned content payloads remain app-specific.
+
+### Per-app cloud deletion
+
+Every deletion begins with `plan_thiepn_app_data_deletion()`. Plans expire after ten minutes and carry server-generated blockers/warnings/backup consequences.
+
+Only WTTN is browser-executable in P18 because its existing delete command writes a revision tombstone and removes checkpoint history, preventing stale clients from silently recreating deleted cloud state.
+
+Other current blockers are deliberate:
+
+- TMS60: no deletion epoch/tombstone understood by stale clients.
+- Diet: no certified whole-namespace app-only deletion command.
+- Notes: sync records, attachment storage and workspace ownership need coordinated cleanup.
+- WORDSTRIKE: profile/leaderboard/submission retention semantics are unresolved.
+
+### Full Account deletion
+
+`plan_thiepn_account_deletion()` calculates current connected-app, live-namespace and backup counts and blocks scheduling while Notes storage objects remain.
+
+`request_thiepn_account_deletion(planId,"DELETE")` creates one pending request with a seven-day grace period.
+
+`cancel_thiepn_account_deletion()` is allowed while that grace period remains open.
+
+An owner-only pg_cron job calls `private.finalize_due_thiepn_account_deletions()` hourly. The finalizer rechecks Notes attachment blockers, locks/removes active legacy Notes workspace access, deletes the Auth user, relies on FK cascades for THIEPN data, and retains the deletion journal row.
+
+Authenticated execution of the legacy immediate `delete_thiepn_account()` and `delete_notes_auth_identity()` functions is revoked so the grace period cannot be bypassed.

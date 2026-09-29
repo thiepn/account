@@ -78,3 +78,25 @@ An Account restore:
 ### Backup inclusion
 
 `backup.include` is an explicit optional Account permission. Revoking it stops future Account-requested backups; it does not delete historical recovery artifacts.
+
+
+## P18 deletion
+
+### App data
+
+Deletion is capability- and protocol-specific. Account does not translate a generic “delete” button into arbitrary table deletes.
+
+WTTN is currently certified because its command:
+
+- checks the expected revision;
+- deletes checkpoint history;
+- writes a higher-revision deletion tombstone;
+- rejects stale writes through normal conflict handling.
+
+TMS60 remains blocked until its sync protocol gains an equivalent deletion epoch/tombstone contract.
+
+### Account identity
+
+Full Account deletion is a separate seven-day lifecycle. Scheduling does not disconnect an app or delete one namespace immediately.
+
+At finalization the canonical Auth user is deleted. Database rows with Auth-user cascade ownership are removed by their existing constraints. Notes storage objects are a preflight/finalization blocker because object storage is not an Auth-user FK cascade.

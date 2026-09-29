@@ -102,6 +102,25 @@ const restoreOperationRowSchema=z.object({
   result:z.record(z.string(),z.unknown()).nullable(),
   error_code:z.string().nullable(),
 });
+const exportRowSchema=z.object({
+  id:z.string().uuid(),
+  scope:z.enum(["account","selected-apps"]),
+  app_slugs:z.array(z.string()).nullable(),
+  status:z.enum(["ready","failed"]),
+  requested_at:z.string(),
+  completed_at:z.string(),
+  expires_at:z.string(),
+  size_bytes:numericBigint,
+});
+const accountDeletionRowSchema=z.object({
+  id:z.string().uuid(),
+  status:z.enum(["pending","deleting","completed","failed","cancelled"]),
+  requested_at:z.string(),
+  cancellable_until:z.string().nullable(),
+  scheduled_deletion_at:z.string().nullable(),
+  completed_at:z.string().nullable(),
+  error_code:z.string().nullable(),
+});
 type ProfileRow=z.infer<typeof profileRowSchema>;
 
 const capabilities:AccountCapabilities={
@@ -114,7 +133,7 @@ const capabilities:AccountCapabilities={
   deviceIdentity:"session-derived",
   appsRead:true,
   dataRead:true,
-  privacyRead:false,
+  privacyRead:true,
 };
 
 function normalizedError(code:string,kind:AccountError["kind"],retryable:boolean):AccountError{return {code,kind,retryable};}
@@ -309,6 +328,52 @@ async function getRealBackupPolicy(supabase:ReturnType<typeof getAccountSupabase
   return {enabled:includedApps.length>0,frequency:"manual-only" as const,includedApps};
 }
 
+async function listRealExports(supabase:ReturnType<typeof getAccountSupabaseClient>){
+  const {data,error}=await supabase
+    .from("account_export_requests")
+    .select("id,scope,app_slugs,status,requested_at,completed_at,expires_at,size_bytes")
+    .order("requested_at",{ascending:false});
+  if(error)throw mapError(error,"EXPORT_LIST_FAILED");
+  const parsed=z.array(exportRowSchema).safeParse(data??[]);
+  if(!parsed.success)throw normalizedError("EXPORT_LIST_SCHEMA_INVALID","server",false);
+  return parsed.data.map((row)=>({
+    id:row.id,
+    scope:row.scope,
+    appIds:row.app_slugs??undefined,
+    status:row.status==="failed"?"failed" as const:new Date(row.expires_at).getTime()<=Date.now()?"expired" as const:"ready" as const,
+    requestedAt:row.requested_at,
+    completedAt:row.completed_at,
+    expiresAt:row.expires_at,
+    sizeBytes:row.size_bytes,
+  }));
+}
+
+async function getRealAccountDeletion(supabase:ReturnType<typeof getAccountSupabaseClient>){
+  const {data,error}=await supabase
+    .from("account_deletion_requests")
+    .select("id,status,requested_at,cancellable_until,scheduled_deletion_at,completed_at,error_code")
+    .order("requested_at",{ascending:false})
+    .limit(1)
+    .maybeSingle();
+  if(error)throw mapError(error,"ACCOUNT_DELETION_READ_FAILED");
+  if(!data)return null;
+  const parsed=accountDeletionRowSchema.safeParse(data);
+  if(!parsed.success)throw normalizedError("ACCOUNT_DELETION_SCHEMA_INVALID","server",false);
+  return {
+    id:parsed.data.id,
+    status:parsed.data.status,
+    requestedAt:parsed.data.requested_at,
+    cancellableUntil:parsed.data.cancellable_until??undefined,
+    scheduledDeletionAt:parsed.data.scheduled_deletion_at??undefined,
+    completedAt:parsed.data.completed_at??undefined,
+  };
+}
+
+async function getRealAccountStatus(supabase:ReturnType<typeof getAccountSupabaseClient>){
+  const request=await getRealAccountDeletion(supabase);
+  return request&&["pending","deleting"].includes(request.status)?"deletion-pending" as const:"active" as const;
+}
+
 async function listRealSessions(supabase:ReturnType<typeof getAccountSupabaseClient>){
   const {data,error}=await supabase.rpc("list_thiepn_account_sessions");
   if(error)throw mapError(error,"SESSION_LIST_FAILED");
@@ -360,7 +425,7 @@ export function createApiAccountService():AccountService{
       emailVerified:Boolean(user.email_confirmed_at),
       provider:"google",
       createdAt:user.created_at,
-      status:"active",
+      status:await getRealAccountStatus(supabase),
     };
     return {identity,profile};
   }
@@ -638,7 +703,152 @@ export function createApiAccountService():AccountService{
         };
       },
     },
-    privacy:{getSummary:()=>unsupported(),requestExport:()=>unsupported(),listExports:()=>unsupported(),getExport:()=>unsupported(),getExportContent:()=>unsupported(),planAppDataDeletion:()=>unsupported(),startAppDataDeletion:()=>unsupported(),planAccountDeletion:()=>unsupported(),requestAccountDeletion:()=>unsupported(),getAccountDeletion:()=>unsupported(),cancelAccountDeletion:()=>unsupported()},
+    privacy:{
+      async getSummary(){
+        const [exports,appData,accountDeletion]=await Promise.all([
+          listRealExports(supabase),
+          service.data.listAppData(),
+          getRealAccountDeletion(supabase),
+        ]);
+        return {
+          exportCount:exports.length,
+          readyExportCount:exports.filter((item)=>item.status==="ready").length,
+          storedAppCount:appData.length,
+          retainedAppCount:appData.filter((item)=>item.namespaceStatus==="retained").length,
+          accountStatus:accountDeletion&&["pending","deleting"].includes(accountDeletion.status)?"deletion-pending" as const:"active" as const,
+          accountDeletion:accountDeletion??undefined,
+        };
+      },
+      async requestExport(appIds){
+        const {data,error}=await supabase.rpc("request_thiepn_account_export",{p_app_slugs:appIds?.length?appIds:null});
+        if(error)throw mapRpcError(error,"EXPORT_REQUEST_FAILED");
+        const id=z.string().uuid().safeParse(data);
+        if(!id.success)throw normalizedError("EXPORT_REQUEST_SCHEMA_INVALID","server",false);
+        const item=await service.privacy.getExport(id.data);
+        if(!item)throw normalizedError("EXPORT_NOT_FOUND","server",false);
+        return item;
+      },
+      async listExports(){return listRealExports(supabase);},
+      async getExport(id){
+        const items=await listRealExports(supabase);
+        return items.find((item)=>item.id===id)??null;
+      },
+      async getExportContent(id){
+        const idCheck=z.string().uuid().safeParse(id);
+        if(!idCheck.success)throw normalizedError("EXPORT_ID_INVALID","validation",false);
+        const {data,error}=await supabase.rpc("get_thiepn_account_export_payload",{p_export_id:idCheck.data});
+        if(error)throw mapRpcError(error,"EXPORT_NOT_AVAILABLE");
+        return JSON.stringify(data,null,2);
+      },
+      async planAppDataDeletion(appId){
+        const {data,error}=await supabase.rpc("plan_thiepn_app_data_deletion",{p_app_slug:appId});
+        if(error)throw mapRpcError(error,"APP_DELETION_PLAN_FAILED");
+        const parsed=z.object({
+          id:z.string().uuid(),
+          appId:z.string(),
+          storageBytes:numericBigint,
+          blockers:z.array(z.string()),
+          warnings:z.array(z.string()),
+          backupImpact:z.string(),
+          requiresReauthentication:z.boolean(),
+          expiresAt:z.string(),
+        }).safeParse(data);
+        if(!parsed.success)throw normalizedError("APP_DELETION_PLAN_SCHEMA_INVALID","server",false);
+        const detail=await service.apps.getApp(appId);
+        const dataDetail=await service.data.getAppData(appId);
+        return {
+          id:parsed.data.id,
+          appId:parsed.data.appId,
+          appName:detail?.app.name??dataDetail?.appName??appId,
+          storageBytes:parsed.data.storageBytes,
+          blockers:parsed.data.blockers,
+          warnings:parsed.data.warnings,
+          backupImpact:parsed.data.backupImpact,
+          requiresReauthentication:parsed.data.requiresReauthentication,
+          expiresAt:parsed.data.expiresAt,
+        };
+      },
+      async startAppDataDeletion(planId){
+        const idCheck=z.string().uuid().safeParse(planId);
+        if(!idCheck.success)throw normalizedError("DELETION_PLAN_INVALID","validation",false);
+        const {data,error}=await supabase.rpc("execute_thiepn_app_data_deletion",{p_plan_id:idCheck.data});
+        if(error)throw mapRpcError(error,"APP_DATA_DELETION_FAILED");
+        const parsed=z.object({
+          id:z.string().uuid(),
+          appId:z.string(),
+          status:z.literal("completed"),
+          completedAt:z.string(),
+        }).safeParse(data);
+        if(!parsed.success)throw normalizedError("APP_DATA_DELETION_SCHEMA_INVALID","server",false);
+        return {
+          id:parsed.data.id,
+          appId:parsed.data.appId,
+          status:"completed" as const,
+          startedAt:parsed.data.completedAt,
+          completedAt:parsed.data.completedAt,
+        };
+      },
+      async planAccountDeletion(){
+        const {data,error}=await supabase.rpc("plan_thiepn_account_deletion");
+        if(error)throw mapRpcError(error,"ACCOUNT_DELETION_PLAN_FAILED");
+        const parsed=z.object({
+          id:z.string().uuid(),
+          appCount:z.number(),
+          namespaceCount:z.number(),
+          backupCount:z.number(),
+          blockers:z.array(z.string()),
+          warnings:z.array(z.string()),
+          gracePeriodDays:z.number(),
+          requiresReauthentication:z.boolean(),
+          expiresAt:z.string(),
+        }).safeParse(data);
+        if(!parsed.success)throw normalizedError("ACCOUNT_DELETION_PLAN_SCHEMA_INVALID","server",false);
+        return parsed.data;
+      },
+      async requestAccountDeletion(planId,confirmation){
+        const idCheck=z.string().uuid().safeParse(planId);
+        if(!idCheck.success)throw normalizedError("DELETION_PLAN_INVALID","validation",false);
+        const {data,error}=await supabase.rpc("request_thiepn_account_deletion",{p_plan_id:idCheck.data,p_confirmation:confirmation});
+        if(error)throw mapRpcError(error,"ACCOUNT_DELETION_REQUEST_FAILED");
+        const parsed=z.object({
+          id:z.string().uuid(),
+          status:z.enum(["pending","deleting"]),
+          requestedAt:z.string(),
+          cancellableUntil:z.string().nullable(),
+          scheduledDeletionAt:z.string().nullable(),
+        }).safeParse(data);
+        if(!parsed.success)throw normalizedError("ACCOUNT_DELETION_REQUEST_SCHEMA_INVALID","server",false);
+        return {
+          id:parsed.data.id,
+          status:parsed.data.status,
+          requestedAt:parsed.data.requestedAt,
+          cancellableUntil:parsed.data.cancellableUntil??undefined,
+          scheduledDeletionAt:parsed.data.scheduledDeletionAt??undefined,
+        };
+      },
+      async getAccountDeletion(){return getRealAccountDeletion(supabase);},
+      async cancelAccountDeletion(){
+        const {data,error}=await supabase.rpc("cancel_thiepn_account_deletion");
+        if(error)throw mapRpcError(error,"ACCOUNT_DELETION_CANCEL_FAILED");
+        const parsed=z.object({
+          id:z.string().uuid(),
+          status:z.literal("cancelled"),
+          requestedAt:z.string(),
+          cancellableUntil:z.string().nullable(),
+          scheduledDeletionAt:z.string().nullable(),
+          completedAt:z.string().nullable(),
+        }).safeParse(data);
+        if(!parsed.success)throw normalizedError("ACCOUNT_DELETION_CANCEL_SCHEMA_INVALID","server",false);
+        return {
+          id:parsed.data.id,
+          status:"cancelled" as const,
+          requestedAt:parsed.data.requestedAt,
+          cancellableUntil:parsed.data.cancellableUntil??undefined,
+          scheduledDeletionAt:parsed.data.scheduledDeletionAt??undefined,
+          completedAt:parsed.data.completedAt??undefined,
+        };
+      },
+    },
     capabilities:{async getCapabilities(){return capabilities;}},
     async getOverview():Promise<Overview>{
       const {identity}=await getIdentityAndProfile();
