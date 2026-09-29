@@ -23,3 +23,12 @@ The frontend does not provision `account_profiles` opportunistically. P13 must a
 ## ID-006 — Account ID decision is provisional through P12
 
 The current adapter maps the authenticated Supabase Auth UUID to frontend `AccountId` because existing Account rows use that UUID. P13 must certify this as the permanent canonical identity before app authorization expands.
+
+
+## ID-007 — Account and Core registries have separate authority
+
+Account Supabase is authoritative for user-connectable product metadata and Account permissions. Core Git registry is authoritative for backend namespaces and infrastructure ownership. `core_app_id` links them when applicable; neither registry blindly mirrors the other.
+
+## ID-008 — Permission grants are control-plane state until enforced downstream
+
+P15 grant records are real user choices, but they are not considered a security boundary until each protected application/Core data path validates trusted app identity and required grants.

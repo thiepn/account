@@ -23,6 +23,44 @@ const sessionRowSchema=z.object({
   aal:z.string().nullable(),
   is_current:z.boolean(),
 });
+
+const accountAppRowSchema=z.object({
+  slug:z.string(),
+  name:z.string(),
+  description:z.string(),
+  path:z.string(),
+  sort_order:z.number(),
+  active:z.boolean(),
+});
+const manifestRowSchema=z.object({
+  app_slug:z.string(),
+  core_app_id:z.string().nullable(),
+  capabilities:z.record(z.string(),z.unknown()),
+});
+const permissionRowSchema=z.object({
+  app_slug:z.string(),
+  permission_id:z.string(),
+  name:z.string(),
+  description:z.string(),
+  required:z.boolean(),
+  mutable_by_user:z.boolean(),
+  sensitivity:z.enum(["basic","sensitive"]),
+  sort_order:z.number(),
+  active:z.boolean(),
+});
+const connectionRowSchema=z.object({
+  app_slug:z.string(),
+  status:z.enum(["connected","limited","disconnected","suspended","error"]),
+  connected_at:z.string(),
+  last_used_at:z.string().nullable(),
+  disconnected_at:z.string().nullable(),
+});
+const grantRowSchema=z.object({
+  app_slug:z.string(),
+  permission_id:z.string(),
+  status:z.enum(["granted","denied"]),
+  updated_at:z.string(),
+});
 type ProfileRow=z.infer<typeof profileRowSchema>;
 
 const capabilities:AccountCapabilities={
@@ -33,12 +71,25 @@ const capabilities:AccountCapabilities={
   devicesRead:true,
   sessionRevocation:"others-only",
   deviceIdentity:"session-derived",
-  appsRead:false,
+  appsRead:true,
   dataRead:false,
   privacyRead:false,
 };
 
 function normalizedError(code:string,kind:AccountError["kind"],retryable:boolean):AccountError{return {code,kind,retryable};}
+function mapRpcError(error:unknown,fallback:string):AccountError{
+  if(error&&typeof error==="object"){
+    const value=error as {code?:string;message?:string;status?:number};
+    const message=value.message??"";
+    if(message.includes("permission_not_mutable"))return normalizedError("PERMISSION_NOT_MUTABLE","conflict",false);
+    if(message.includes("connection_not_active"))return normalizedError("CONNECTION_NOT_ACTIVE","conflict",false);
+    if(message.includes("permission_not_found"))return normalizedError("PERMISSION_NOT_FOUND","validation",false);
+    if(message.includes("app_unavailable"))return normalizedError("APP_UNAVAILABLE","validation",false);
+    if(value.code==="42501")return normalizedError("AUTHORIZATION_FAILED","authorization",false);
+    if(value.code==="22023")return normalizedError(fallback,"validation",false);
+  }
+  return mapError(error,fallback);
+}
 function mapError(error:unknown,fallback="ACCOUNT_API_ERROR"):AccountError{
   if(error&&typeof error==="object"){
     const candidate=error as {status?:number;code?:string};
@@ -66,6 +117,80 @@ function describeUserAgent(userAgent:string|null){
   const platform=/Android/i.test(ua)?"Android":/iPhone|iPad|iPod/i.test(ua)?"iOS":/Windows/i.test(ua)?"Windows":/Macintosh|Mac OS X/i.test(ua)?"macOS":/Linux/i.test(ua)?"Linux":"Unknown platform";
   const clientName=/SamsungBrowser\//i.test(ua)?"Samsung Internet":/Edg\//i.test(ua)?"Edge":/Firefox\//i.test(ua)?"Firefox":/Chrome\//i.test(ua)?"Chrome":/Safari\//i.test(ua)?"Safari":"Browser";
   return {platform,clientName,label:`${clientName} on ${platform}`};
+}
+
+async function loadRealApps(supabase:ReturnType<typeof getAccountSupabaseClient>){
+  const [appsResult,manifestsResult,permissionsResult,connectionsResult,grantsResult]=await Promise.all([
+    supabase.from("account_apps").select("slug,name,description,path,sort_order,active").order("sort_order",{ascending:true}),
+    supabase.from("account_app_manifests").select("app_slug,core_app_id,capabilities"),
+    supabase.from("account_app_permissions").select("app_slug,permission_id,name,description,required,mutable_by_user,sensitivity,sort_order,active").order("sort_order",{ascending:true}),
+    supabase.from("account_app_connections").select("app_slug,status,connected_at,last_used_at,disconnected_at"),
+    supabase.from("account_app_grants").select("app_slug,permission_id,status,updated_at"),
+  ]);
+  for(const result of [appsResult,manifestsResult,permissionsResult,connectionsResult,grantsResult]){
+    if(result.error)throw mapError(result.error,"APPS_READ_FAILED");
+  }
+  const apps=z.array(accountAppRowSchema).parse(appsResult.data??[]);
+  const manifests=z.array(manifestRowSchema).parse(manifestsResult.data??[]);
+  const permissions=z.array(permissionRowSchema).parse(permissionsResult.data??[]);
+  const connections=z.array(connectionRowSchema).parse(connectionsResult.data??[]);
+  const grants=z.array(grantRowSchema).parse(grantsResult.data??[]);
+  const appMap=new Map(apps.map((row)=>[row.slug,row]));
+  const manifestMap=new Map(manifests.map((row)=>[row.app_slug,row]));
+
+  return connections.map((connection)=>{
+    const appRow=appMap.get(connection.app_slug);
+    const manifest=manifestMap.get(connection.app_slug);
+    const appPermissions=permissions.filter((permission)=>permission.app_slug===connection.app_slug&&permission.active);
+    const appGrants=grants.filter((grant)=>grant.app_slug===connection.app_slug);
+    const grantMap=new Map(appGrants.map((grant)=>[grant.permission_id,grant]));
+    const rawCaps=manifest?.capabilities??{};
+    const availablePermissions=appPermissions.map((permission)=>({
+      id:permission.permission_id,
+      name:permission.name,
+      description:permission.description,
+      required:permission.required,
+      mutableByUser:permission.mutable_by_user,
+      sensitivity:permission.sensitivity,
+    }));
+    const grantedPermissions=availablePermissions.map((permission)=>{
+      const grant=grantMap.get(permission.id);
+      return {
+        permissionId:permission.id,
+        status:grant?.status??"denied" as const,
+        updatedAt:grant?.updated_at??connection.connected_at,
+      };
+    });
+    const requiredMissing=availablePermissions.some((permission)=>permission.required&&!grantedPermissions.some((grant)=>grant.permissionId===permission.id&&grant.status==="granted"));
+    const effectiveStatus=connection.status==="connected"&&requiredMissing?"limited":connection.status;
+    return {
+      app:{
+        id:connection.app_slug,
+        slug:connection.app_slug,
+        name:appRow?.name??"Unknown THIEPN app",
+        description:appRow?.description??"This connection refers to an app that is no longer active in the Account registry.",
+        status:appRow?.active===false?"disabled" as const:"active" as const,
+        productUrl:appRow?.path?`https://thiepn.dev${appRow.path}`:undefined,
+        supportedCapabilities:{
+          accountIdentity:true,
+          cloudSync:Boolean(rawCaps["sync"]||rawCaps["cloud_saves"]),
+          backup:Boolean(rawCaps["backups"]),
+          export:Boolean(rawCaps["export_data"]||rawCaps["platformExport"]),
+          cloudDataDeletion:Boolean(rawCaps["delete_app_data"]||rawCaps["ecosystemDeletion"]),
+          permissionManagement:true,
+        },
+        availablePermissions,
+      },
+      connection:{
+        appId:connection.app_slug,
+        status:effectiveStatus,
+        connectedAt:connection.connected_at,
+        lastUsedAt:connection.last_used_at??undefined,
+        grantedPermissions,
+      },
+      coreAppId:manifest?.core_app_id??undefined,
+    };
+  });
 }
 
 async function listRealSessions(supabase:ReturnType<typeof getAccountSupabaseClient>){
@@ -220,7 +345,43 @@ export function createApiAccountService():AccountService{
         if(error)throw mapError(error,"REVOKE_OTHER_SESSIONS_FAILED");
       },
     },
-    apps:{listApps:()=>unsupported(),getApp:()=>unsupported(),grantPermission:()=>unsupported(),revokePermission:()=>unsupported(),disconnect:()=>unsupported()},
+    apps:{
+      async listApps(){
+        const details=await loadRealApps(supabase);
+        return details
+          .filter(({connection})=>!["disconnected","suspended"].includes(connection.status))
+          .map(({app,connection})=>({
+            id:app.id,
+            name:app.name,
+            status:connection.status==="limited"?"limited" as const:connection.status==="error"?"error" as const:"connected" as const,
+            lastUsedAt:connection.lastUsedAt,
+            permissionCount:connection.grantedPermissions.filter((permission)=>permission.status==="granted").length,
+          }));
+      },
+      async getApp(appId){
+        const details=await loadRealApps(supabase);
+        const detail=details.find(({app})=>app.id===appId);
+        return detail?{app:detail.app,connection:detail.connection}:null;
+      },
+      async grantPermission(appId,permissionId){
+        const {error}=await supabase.rpc("set_thiepn_app_permission",{p_app_slug:appId,p_permission_id:permissionId,p_granted:true});
+        if(error)throw mapRpcError(error,"PERMISSION_GRANT_FAILED");
+        const detail=await service.apps.getApp(appId);
+        if(!detail)throw normalizedError("CONNECTION_NOT_FOUND","conflict",false);
+        return detail;
+      },
+      async revokePermission(appId,permissionId){
+        const {error}=await supabase.rpc("set_thiepn_app_permission",{p_app_slug:appId,p_permission_id:permissionId,p_granted:false});
+        if(error)throw mapRpcError(error,"PERMISSION_REVOKE_FAILED");
+        const detail=await service.apps.getApp(appId);
+        if(!detail)throw normalizedError("CONNECTION_NOT_FOUND","conflict",false);
+        return detail;
+      },
+      async disconnect(appId){
+        const {error}=await supabase.rpc("disconnect_thiepn_app",{p_app_slug:appId});
+        if(error)throw mapRpcError(error,"APP_DISCONNECT_FAILED");
+      },
+    },
     data:{getSummary:()=>unsupported(),listAppData:()=>unsupported(),getAppData:()=>unsupported(),retrySync:()=>unsupported(),updateSyncConfiguration:()=>unsupported()},
     backup:{getSummary:()=>unsupported(),listBackups:()=>unsupported(),getBackup:()=>unsupported(),createBackup:()=>unsupported(),getPolicy:()=>unsupported(),updatePolicy:()=>unsupported(),planRestore:()=>unsupported(),startRestore:()=>unsupported(),getRestoreOperation:()=>unsupported()},
     privacy:{getSummary:()=>unsupported(),requestExport:()=>unsupported(),listExports:()=>unsupported(),getExport:()=>unsupported(),getExportContent:()=>unsupported(),planAppDataDeletion:()=>unsupported(),startAppDataDeletion:()=>unsupported(),planAccountDeletion:()=>unsupported(),requestAccountDeletion:()=>unsupported(),getAccountDeletion:()=>unsupported(),cancelAccountDeletion:()=>unsupported()},
@@ -232,7 +393,7 @@ export function createApiAccountService():AccountService{
         capabilities,
         security:await service.security.getSummary(),
         devices:await service.devices.listDevices(),
-        apps:[],
+        apps:await service.apps.listApps(),
         data:{totalStorageBytes:0,appCount:0,syncStatus:"unavailable",attentionCount:0,backupStatus:"none"},
       };
     },

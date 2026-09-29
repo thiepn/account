@@ -89,3 +89,26 @@ Specific remote-session or one-device revocation is deliberately capability-disa
 ### Security event history
 
 The current production backend has no authoritative Account security-event journal. The frontend advertises `securityActivityRead=false` and does not fabricate events.
+
+
+## P15 connected-app control plane
+
+Real Account app state is backed by:
+
+- `account_apps`
+- `account_app_manifests`
+- `account_app_permissions`
+- `account_app_connections`
+- `account_app_grants`
+
+Authenticated clients may SELECT registry metadata and their own connection/grant rows through RLS.
+
+Writes are not granted directly. Account mutations use owner-scoped RPCs:
+
+- `connect_thiepn_app(app_slug)`
+- `set_thiepn_app_permission(app_slug, permission_id, granted)`
+- `disconnect_thiepn_app(app_slug)`
+
+Required permissions cannot be independently revoked. Disconnect marks the control-plane connection disconnected and denies grants; it does not delete app cloud data.
+
+These records do not yet authorize Core namespace operations. Data-path enforcement must consume trusted app identity plus Account grant state in a later phase.
