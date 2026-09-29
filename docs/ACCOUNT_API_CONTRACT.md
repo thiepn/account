@@ -60,3 +60,32 @@ Until later phases are really integrated:
 - privacyRead: false
 
 Unsupported domains fail with `CAPABILITY_UNAVAILABLE`. They never fall back to mock data in real/production mode.
+
+
+## P14 Security / sessions adapter
+
+### Security summary
+
+The browser uses the authenticated Supabase client to call `auth.mfa.listFactors()`. A verified TOTP/phone factor is represented as Account two-step verification enabled. No secret factor material is surfaced to the frontend.
+
+### Sessions
+
+`public.list_thiepn_account_sessions()` remains the owner-scoped read boundary over `auth.sessions`.
+
+The adapter exposes each active Supabase session as a **session-derived environment**. It parses only coarse browser/platform labels from the stored user-agent string and does not claim a stable physical device identity.
+
+### Revocation
+
+Supported production revocation currently uses the documented Supabase Auth client:
+
+```ts
+supabase.auth.signOut({ scope: "others" })
+```
+
+This revokes every other session and preserves the current session.
+
+Specific remote-session or one-device revocation is deliberately capability-disabled. The frontend does not write directly to `auth.sessions` or depend on undocumented auth-schema mutation behavior.
+
+### Security event history
+
+The current production backend has no authoritative Account security-event journal. The frontend advertises `securityActivityRead=false` and does not fabricate events.

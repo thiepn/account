@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useApp, useAppData, useAppDataList, useApps, useBackup, useBackups, useBackupSummary, useCreateBackup, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useAccountDeletion, useCancelAccountDeletion, useExport, useExports, usePlanAccountDeletion, usePlanAppDataDeletion, usePlanRestore, useProfile, useRequestAccountDeletion, useRequestExport, useRestoreOperation, useRetrySync, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useStartAppDataDeletion, useStartRestore, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
+import { useApp, useAppData, useAppDataList, useApps, useBackup, useBackups, useBackupSummary, useCapabilities, useCreateBackup, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useAccountDeletion, useCancelAccountDeletion, useExport, useExports, usePlanAccountDeletion, usePlanAppDataDeletion, usePlanRestore, useProfile, useRequestAccountDeletion, useRequestExport, useRestoreOperation, useRetrySync, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useStartAppDataDeletion, useStartRestore, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
 import { useAccountService } from "../account/context";
 import { useTheme } from "../app/theme";
 import { Panel } from "../components/ui/Panel";
@@ -144,13 +144,18 @@ export function ProfilePage(){
 
 export function SecurityPage(){
   const q=useSecurity();
-  if(q.isLoading)return <Loading/>;
+  const capabilities=useCapabilities();
+  if(q.isLoading||capabilities.isLoading)return <Loading/>;
   if(!q.data)return <div>Could not load security status.</div>;
   return <><PageHeader title="Security" description="Sign-in methods, protection and recent account activity."/><div className="space-y-4">
     {q.data.attention.length?<Notice tone="warning">{q.data.attention[0]}</Notice>:null}
     <Panel title="Sign-in method"><div className="flex items-center justify-between gap-4"><p className="text-sm">{q.data.authMethod}</p><StatusBadge tone="success">Connected</StatusBadge></div></Panel>
-    <Panel title="Additional protection"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-medium">Two-step verification</p><p className="mt-1 text-sm text-[var(--muted)]">Additional protection is capability-gated until the real auth backend supports it.</p></div><StatusBadge>{q.data.twoStepVerification}</StatusBadge></div></Panel>
-    <Panel title="Recent security activity" description="Important sign-ins and Account security changes."><div className="activity-list">{q.data.recentActivity.map((event)=><Link className="activity-row" key={event.id} to={`/security/activity/${event.id}`}><span><strong>{event.title}</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(event.occurredAt))}</small></span><StatusBadge tone={event.severity==="warning"?"warning":event.severity==="critical"?"danger":"neutral"}>{event.category}</StatusBadge></Link>)}</div><Link className="inline-link" to="/security/activity">View all activity</Link></Panel>
+    <Panel title="Additional protection"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-medium">Two-step verification</p><p className="mt-1 text-sm text-[var(--muted)]">Status is read from your THIEPN Account authentication factors.</p></div><StatusBadge tone={q.data.twoStepVerification==="enabled"?"success":"neutral"}>{q.data.twoStepVerification}</StatusBadge></div></Panel>
+    <Panel title="Recent security activity" description="Important sign-ins and Account security changes.">
+      {capabilities.data?.securityActivityRead
+        ? <><div className="activity-list">{q.data.recentActivity.map((event)=><Link className="activity-row" key={event.id} to={`/security/activity/${event.id}`}><span><strong>{event.title}</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(event.occurredAt))}</small></span><StatusBadge tone={event.severity==="warning"?"warning":event.severity==="critical"?"danger":"neutral"}>{event.category}</StatusBadge></Link>)}</div><Link className="inline-link" to="/security/activity">View all activity</Link></>
+        : <p className="m-0 text-sm text-[var(--muted)]">Detailed Account security-event history is not available from the current production backend yet.</p>}
+    </Panel>
   </div></>;
 }
 
@@ -176,35 +181,42 @@ export function SecurityEventPage(){
 
 export function DevicesPage(){
   const q=useDevices();
+  const capabilities=useCapabilities();
   const revokeDevice=useRevokeDevice();
   const revokeOthers=useRevokeOtherSessions();
   const [target,setTarget]=useState<{id:string;label:string}|null>(null);
   const devices=q.data??[];
   const others=devices.filter((device)=>!device.current);
-  if(q.isLoading)return <Loading/>;
+  if(q.isLoading||capabilities.isLoading)return <Loading/>;
+  const canIndividual=capabilities.data?.sessionRevocation==="individual";
+  const canOthers=capabilities.data?.sessionRevocation==="individual"||capabilities.data?.sessionRevocation==="others-only";
   return <><PageHeader title="Devices" description="Recognized client environments with active THIEPN Account sessions."/>
-    <div className="space-y-4">
-      {devices.filter((device)=>device.current).map((device)=><Panel key={device.id} title={device.label} description="Current device"><div className="flex items-center justify-between gap-4"><p className="text-sm text-[var(--muted)]">{device.sessions.length} active session{device.sessions.length===1?"":"s"}</p><Link className="inline-link" to={`/devices/${device.id}`}>View</Link></div></Panel>)}
-      <Panel title="Other signed-in devices" description={others.length?"Remote access you can review and revoke.":"No other devices are signed in."}>
-        {others.length?<div className="device-list">{others.map((device)=><div className="device-row" key={device.id}><Link to={`/devices/${device.id}`}><strong>{device.label}</strong><small>{device.platform} · {device.sessions.length} session{device.sessions.length===1?"":"s"}</small></Link><Button variant="ghost" onClick={()=>setTarget({id:device.id,label:device.label})}>Sign out</Button></div>)}</div>:<EmptyState title="Only this device" description="No other active Account sessions are associated with another device."/>}
+    {capabilities.data?.deviceIdentity==="session-derived"?<Notice>Production currently identifies active session environments, not physical hardware. A browser session can therefore appear as its own device entry.</Notice>:null}
+    <div className="mt-4 space-y-4">
+      {devices.filter((device)=>device.current).map((device)=><Panel key={device.id} title={device.label} description="Current session environment"><div className="flex items-center justify-between gap-4"><p className="text-sm text-[var(--muted)]">{device.sessions.length} active session{device.sessions.length===1?"":"s"}</p><Link className="inline-link" to={`/devices/${device.id}`}>View</Link></div></Panel>)}
+      <Panel title="Other signed-in environments" description={others.length?"Remote Account sessions you can review.":"No other sessions are signed in."}>
+        {others.length?<div className="device-list">{others.map((device)=><div className="device-row" key={device.id}><Link to={`/devices/${device.id}`}><strong>{device.label}</strong><small>{device.platform} · {device.sessions.length} session{device.sessions.length===1?"":"s"}</small></Link>{canIndividual?<Button variant="ghost" onClick={()=>setTarget({id:device.id,label:device.label})}>Sign out</Button>:<StatusBadge>Active</StatusBadge>}</div>)}</div>:<EmptyState title="Only this session" description="No other active Account sessions are present."/>}
       </Panel>
-      {others.length?<Button onClick={()=>void revokeOthers.mutateAsync()} disabled={revokeOthers.isPending}>{revokeOthers.isPending?"Signing out…":"Sign out all other sessions"}</Button>:null}
+      {others.length&&canOthers?<Button onClick={()=>void revokeOthers.mutateAsync()} disabled={revokeOthers.isPending}>{revokeOthers.isPending?"Signing out…":"Sign out all other sessions"}</Button>:null}
     </div>
-    <ConfirmDialog open={Boolean(target)} title={`Sign out ${target?.label??"device"}?`} description="All active Account sessions associated with this device will need to sign in again. Existing app data is not erased." confirmLabel="Sign out" danger pending={revokeDevice.isPending} onCancel={()=>setTarget(null)} onConfirm={async()=>{if(!target)return;await revokeDevice.mutateAsync(target.id);setTarget(null);}}/>
+    <ConfirmDialog open={Boolean(target)} title={`Sign out ${target?.label??"device"}?`} description="All active Account sessions associated with this environment will need to sign in again. Existing app data is not erased." confirmLabel="Sign out" danger pending={revokeDevice.isPending} onCancel={()=>setTarget(null)} onConfirm={async()=>{if(!target)return;await revokeDevice.mutateAsync(target.id);setTarget(null);}}/>
   </>;
 }
 
 export function DeviceDetailPage(){
   const {deviceId}=useParams();
   const q=useDevice(deviceId);
+  const capabilities=useCapabilities();
   const revokeSession=useRevokeSession();
   const [target,setTarget]=useState<{id:string;name:string}|null>(null);
-  if(q.isLoading)return <Loading/>;
-  if(!q.data)return <><PageHeader title="Device no longer signed in" description="This device has no active Account sessions."/><Link className="inline-link" to="/devices">Back to devices</Link></>;
+  if(q.isLoading||capabilities.isLoading)return <Loading/>;
+  if(!q.data)return <><PageHeader title="Session no longer active" description="This session environment no longer has active Account access."/><Link className="inline-link" to="/devices">Back to devices</Link></>;
   const device=q.data;
-  return <><PageHeader title={device.label} description={device.current?"Current device":device.platform}/><div className="space-y-4">
-    <Panel title="Device"><dl className="detail-grid"><div><dt>Platform</dt><dd>{device.platform}</dd></div><div><dt>First seen</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(device.firstSeenAt))}</dd></div><div><dt>Last activity</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(device.lastActivityAt))}</dd></div><div><dt>Device ID</dt><dd className="font-mono text-sm">{device.id}</dd></div></dl></Panel>
-    <Panel title="Active sessions"><div className="device-list">{device.sessions.map((session)=><div className="device-row" key={session.id}><div><strong>{session.clientName}</strong><small>{session.current?"Current session":`Last active ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(session.lastActivityAt))}`}</small></div>{session.current?<StatusBadge tone="success">Current</StatusBadge>:<Button variant="ghost" onClick={()=>setTarget({id:session.id,name:session.clientName})}>Sign out</Button>}</div>)}</div></Panel>
+  const canIndividual=capabilities.data?.sessionRevocation==="individual";
+  return <><PageHeader title={device.label} description={device.current?"Current session environment":device.platform}/><div className="space-y-4">
+    {capabilities.data?.deviceIdentity==="session-derived"?<Notice>This entry represents an authenticated browser session environment, not a verified physical device identity.</Notice>:null}
+    <Panel title="Environment"><dl className="detail-grid"><div><dt>Platform</dt><dd>{device.platform}</dd></div><div><dt>First seen</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(device.firstSeenAt))}</dd></div><div><dt>Last activity</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(device.lastActivityAt))}</dd></div><div><dt>Environment ID</dt><dd className="font-mono text-sm">{device.id}</dd></div></dl></Panel>
+    <Panel title="Active sessions"><div className="device-list">{device.sessions.map((session)=><div className="device-row" key={session.id}><div><strong>{session.clientName}</strong><small>{session.current?"Current session":`Last active ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(session.lastActivityAt))}`}</small></div>{session.current?<StatusBadge tone="success">Current</StatusBadge>:canIndividual?<Button variant="ghost" onClick={()=>setTarget({id:session.id,name:session.clientName})}>Sign out</Button>:<StatusBadge>Active</StatusBadge>}</div>)}</div></Panel>
   </div><ConfirmDialog open={Boolean(target)} title={`Sign out ${target?.name??"session"}?`} description="This session will need to sign in again. Other sessions are unaffected." confirmLabel="Sign out" danger pending={revokeSession.isPending} onCancel={()=>setTarget(null)} onConfirm={async()=>{if(!target)return;await revokeSession.mutateAsync(target.id);setTarget(null);}}/></>;
 }
 export function AppsPage(){

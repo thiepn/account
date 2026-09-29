@@ -57,3 +57,16 @@ The database allows nullable language/timezone. When absent, the frontend uses t
 ## Not yet production-certified
 
 P13 still requires real Google OAuth testing on the final `account.thiepn.dev` origin, explicit real reauthentication semantics, multi-device real-session testing and final provider/callback configuration certification before it can be marked complete.
+
+
+## P14 session management
+
+Supabase Auth's supported sign-out scopes are used as the session-revocation authority:
+
+- `local`: current session only.
+- `others`: every other session, current session survives.
+- `global`: all sessions.
+
+THIEPN Account currently exposes normal local sign-out and “sign out all other sessions.” It does not directly delete rows in the internal `auth.sessions` schema.
+
+The session list RPC is read-only. User-agent strings are treated as coarse client-environment metadata only.

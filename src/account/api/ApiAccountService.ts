@@ -12,11 +12,30 @@ const profileRowSchema=z.object({
   created_at:z.string(),
   updated_at:z.string(),
 });
+
+const sessionRowSchema=z.object({
+  session_id:z.string().uuid(),
+  created_at:z.string(),
+  updated_at:z.string(),
+  refreshed_at:z.string().nullable(),
+  not_after:z.string().nullable(),
+  user_agent:z.string().nullable(),
+  aal:z.string().nullable(),
+  is_current:z.boolean(),
+});
 type ProfileRow=z.infer<typeof profileRowSchema>;
 
 const capabilities:AccountCapabilities={
-  profileRead:true,profileWrite:true,
-  securityRead:false,devicesRead:false,appsRead:false,dataRead:false,privacyRead:false,
+  profileRead:true,
+  profileWrite:true,
+  securityRead:true,
+  securityActivityRead:false,
+  devicesRead:true,
+  sessionRevocation:"others-only",
+  deviceIdentity:"session-derived",
+  appsRead:false,
+  dataRead:false,
+  privacyRead:false,
 };
 
 function normalizedError(code:string,kind:AccountError["kind"],retryable:boolean):AccountError{return {code,kind,retryable};}
@@ -41,6 +60,35 @@ function profileFromRow(row:ProfileRow,userName?:string|null):AccountProfile{
   };
 }
 function unsupported<T>():Promise<T>{return Promise.reject(normalizedError("CAPABILITY_UNAVAILABLE","unsupported",false));}
+
+function describeUserAgent(userAgent:string|null){
+  const ua=userAgent??"";
+  const platform=/Android/i.test(ua)?"Android":/iPhone|iPad|iPod/i.test(ua)?"iOS":/Windows/i.test(ua)?"Windows":/Macintosh|Mac OS X/i.test(ua)?"macOS":/Linux/i.test(ua)?"Linux":"Unknown platform";
+  const clientName=/SamsungBrowser\//i.test(ua)?"Samsung Internet":/Edg\//i.test(ua)?"Edge":/Firefox\//i.test(ua)?"Firefox":/Chrome\//i.test(ua)?"Chrome":/Safari\//i.test(ua)?"Safari":"Browser";
+  return {platform,clientName,label:`${clientName} on ${platform}`};
+}
+
+async function listRealSessions(supabase:ReturnType<typeof getAccountSupabaseClient>){
+  const {data,error}=await supabase.rpc("list_thiepn_account_sessions");
+  if(error)throw mapError(error,"SESSION_LIST_FAILED");
+  const parsed=z.array(sessionRowSchema).safeParse(data??[]);
+  if(!parsed.success)throw normalizedError("SESSION_SCHEMA_INVALID","server",false);
+  return parsed.data.map((row)=>{
+    const environment=describeUserAgent(row.user_agent);
+    const expired=Boolean(row.not_after&&new Date(row.not_after).getTime()<=Date.now());
+    return {
+      id:row.session_id,
+      deviceId:`session:${row.session_id}`,
+      createdAt:row.created_at,
+      lastActivityAt:row.updated_at||row.created_at,
+      authMethod:"Google" as const,
+      clientName:environment.clientName,
+      current:row.is_current,
+      status:expired?"expired" as const:"active" as const,
+      environment,
+    };
+  });
+}
 
 export function createApiAccountService():AccountService{
   const supabase=getAccountSupabaseClient();
@@ -120,8 +168,58 @@ export function createApiAccountService():AccountService{
         return profileFromRow(parsed.data,null);
       },
     },
-    security:{getSummary:()=>unsupported(),listActivity:()=>unsupported(),getEvent:()=>unsupported()},
-    devices:{listDevices:()=>unsupported(),getDevice:()=>unsupported(),listSessions:()=>unsupported(),revokeSession:()=>unsupported(),revokeDevice:()=>unsupported(),revokeOtherSessions:()=>unsupported()},
+    security:{
+      async getSummary(){
+        const factors=await supabase.auth.mfa.listFactors();
+        if(factors.error)throw mapError(factors.error,"MFA_LIST_FAILED");
+        const verified=[...factors.data.totp,...factors.data.phone].filter((factor)=>factor.status==="verified");
+        return {
+          attention:[],
+          authMethod:"Google" as const,
+          twoStepVerification:verified.length?"enabled" as const:"disabled" as const,
+          recentActivity:[],
+        };
+      },
+      async listActivity(){return [];},
+      async getEvent(){return null;},
+    },
+    devices:{
+      async listSessions(){
+        const sessions=await listRealSessions(supabase);
+        return sessions.filter((session)=>session.status==="active").map(({environment:_,...session})=>session);
+      },
+      async listDevices(){
+        const sessions=await listRealSessions(supabase);
+        return sessions.filter((session)=>session.status==="active").map((session)=>({
+          id:session.deviceId,
+          label:session.environment.label,
+          platform:session.environment.platform,
+          current:session.current,
+          firstSeenAt:session.createdAt,
+          lastActivityAt:session.lastActivityAt,
+          sessions:[{
+            id:session.id,
+            deviceId:session.deviceId,
+            createdAt:session.createdAt,
+            lastActivityAt:session.lastActivityAt,
+            authMethod:session.authMethod,
+            clientName:session.clientName,
+            current:session.current,
+            status:session.status,
+          }],
+        }));
+      },
+      async getDevice(id){
+        const devices=await service.devices.listDevices();
+        return devices.find((device)=>device.id===id)??null;
+      },
+      async revokeSession(){return unsupported();},
+      async revokeDevice(){return unsupported();},
+      async revokeOtherSessions(){
+        const {error}=await supabase.auth.signOut({scope:"others"});
+        if(error)throw mapError(error,"REVOKE_OTHER_SESSIONS_FAILED");
+      },
+    },
     apps:{listApps:()=>unsupported(),getApp:()=>unsupported(),grantPermission:()=>unsupported(),revokePermission:()=>unsupported(),disconnect:()=>unsupported()},
     data:{getSummary:()=>unsupported(),listAppData:()=>unsupported(),getAppData:()=>unsupported(),retrySync:()=>unsupported(),updateSyncConfiguration:()=>unsupported()},
     backup:{getSummary:()=>unsupported(),listBackups:()=>unsupported(),getBackup:()=>unsupported(),createBackup:()=>unsupported(),getPolicy:()=>unsupported(),updatePolicy:()=>unsupported(),planRestore:()=>unsupported(),startRestore:()=>unsupported(),getRestoreOperation:()=>unsupported()},
@@ -132,8 +230,8 @@ export function createApiAccountService():AccountService{
       return {
         identity,
         capabilities,
-        security:{attention:[],authMethod:"Google",twoStepVerification:"unavailable",recentActivity:[]},
-        devices:[],
+        security:await service.security.getSummary(),
+        devices:await service.devices.listDevices(),
         apps:[],
         data:{totalStorageBytes:0,appCount:0,syncStatus:"unavailable",attentionCount:0,backupStatus:"none"},
       };
