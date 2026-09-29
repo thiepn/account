@@ -21,7 +21,7 @@ export function AccountShell(){
   useEffect(()=>{
     const title=routeTitle(location.pathname);
     document.title=title==="Overview"?"THIEPN Account":`${title} — THIEPN Account`;
-    setDrawerOpen(false); window.scrollTo({top:0,behavior:"instant"});
+    setDrawerOpen(false); window.scrollTo({top:0,behavior:"auto"});
   },[location.pathname]);
   async function signOut(){await service.auth.signOut();queryClient.clear();navigate("/auth/sign-in",{replace:true});}
   return <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
