@@ -42,12 +42,11 @@ jobs:
             exit 0
           fi
           cname="$(python -c 'import json; print((json.load(open("/tmp/pages.json")).get("cname") or ""))')"
-          build_type="$(python -c 'import json; print((json.load(open("/tmp/pages.json")).get("build_type") or ""))')"
-          if [ "$cname" = "account.thiepn.dev" ] && [ "$build_type" = "workflow" ]; then
+          if [ "$cname" = "account.thiepn.dev" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "Pages exists but production is not ready: build_type=$build_type cname=$cname"
+            echo "Pages exists but the custom domain is not account.thiepn.dev (current: $cname)"
           fi
 
   build:
