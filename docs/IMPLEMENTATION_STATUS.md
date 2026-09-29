@@ -5,8 +5,8 @@ This file distinguishes **frontend implemented**, **backend partially existing**
 | Phase | Status | Current evidence |
 | --- | --- | --- |
 | P0 Product/Architecture Foundation | IMPLEMENTED BASE | Repository initialized; typed service boundary, seven-section product boundary and frontend architecture exist. |
-| P1 Design System | PARTIAL | Semantic tokens, responsive spacing/radius foundation and shared Panel component exist. Full primitive library remains. |
-| P2 Application Shell | IMPLEMENTED BASE | Responsive sidebar, compact one-row mobile header, drawer, routing, title updates, theme foundation and protected shell exist. |
+| P1 Design System | IMPLEMENTED FOUNDATION | Semantic tokens plus shared Button, Panel, Notice, StatusBadge, EmptyState and accessible confirmation-dialog primitives exist. Specialized domain components continue to be added as their phases land. |
+| P2 Application Shell | IMPLEMENTED FOUNDATION | Responsive sidebar, compact one-row mobile header, keyboard-trapped/Escape-close drawer with focus restoration and body lock, routing, title updates, theme foundation, protected shell, skip link, 404 and top-level render error boundary exist. |
 | P3 Mock Runtime & Overview | IMPLEMENTED BASE | Deterministic scenarios, persisted mock auth/profile state, Query layer and Overview exist. |
 | P4 Profile | IMPLEMENTED MOCK | Editable display name/language/timezone, read-only canonical identity, local theme preference, Zod validation, pending/error/success states and unsaved browser-exit protection are implemented behind AccountService. Internal-route discard protection and avatar upload remain for later P4 hardening. |
 | P5 Security | NOT YET | Mock summary only. |

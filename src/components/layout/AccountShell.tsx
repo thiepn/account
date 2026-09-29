@@ -1,5 +1,5 @@
 import { LogOut, Menu, Moon, Sun, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccountService } from "../../account/context";
@@ -17,17 +17,43 @@ function Navigation({onNavigate}:{onNavigate?:()=>void}){
 
 export function AccountShell(){
   const [drawerOpen,setDrawerOpen]=useState(false);
+  const menuRef=useRef<HTMLButtonElement>(null);
+  const drawerRef=useRef<HTMLDivElement>(null);
+  const closeRef=useRef<HTMLButtonElement>(null);
   const location=useLocation(); const navigate=useNavigate(); const service=useAccountService(); const queryClient=useQueryClient(); const theme=useTheme();
+
   useEffect(()=>{
     const title=routeTitle(location.pathname);
     document.title=title==="Overview"?"THIEPN Account":`${title} — THIEPN Account`;
-    setDrawerOpen(false); window.scrollTo({top:0,behavior:"auto"});
+    setDrawerOpen(false);
+    window.scrollTo({top:0,behavior:"auto"});
   },[location.pathname]);
+
+  useEffect(()=>{
+    if(!drawerOpen)return;
+    const oldOverflow=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    closeRef.current?.focus();
+    const keydown=(event:KeyboardEvent)=>{
+      if(event.key==="Escape"){event.preventDefault();setDrawerOpen(false);return;}
+      if(event.key!=="Tab")return;
+      const nodes=drawerRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])');
+      if(!nodes?.length)return;
+      const first=nodes[0],last=nodes[nodes.length-1];
+      if(!first||!last)return;
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+    };
+    document.addEventListener("keydown",keydown);
+    return()=>{document.removeEventListener("keydown",keydown);document.body.style.overflow=oldOverflow;menuRef.current?.focus();};
+  },[drawerOpen]);
+
   async function signOut(){await service.auth.signOut();queryClient.clear();navigate("/auth/sign-in",{replace:true});}
+
   return <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-[var(--surface)] focus:px-4 focus:py-2">Skip to content</a>
     <header className="sticky top-0 z-30 flex h-14 items-center border-b border-[var(--border)] bg-[var(--background)]/95 px-3 backdrop-blur md:hidden">
-      <button className="icon-button" onClick={()=>setDrawerOpen(true)} aria-label="Open navigation"><Menu size={20}/></button>
+      <button ref={menuRef} className="icon-button" onClick={()=>setDrawerOpen(true)} aria-label="Open navigation" aria-expanded={drawerOpen}><Menu size={20}/></button>
       <div className="ml-3 min-w-0 flex-1 truncate font-semibold">THIEPN Account</div>
       <button className="avatar-button" aria-label="Account menu">J</button>
     </header>
@@ -41,10 +67,10 @@ export function AccountShell(){
       </aside>
       <main id="main-content" className="min-w-0 flex-1 px-4 py-6 sm:px-6 md:px-8 md:py-8"><div className="mx-auto max-w-[1000px]"><Outlet/></div></main>
     </div>
-    {drawerOpen?<div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Account navigation">
-      <button className="absolute inset-0 bg-black/45" onClick={()=>setDrawerOpen(false)} aria-label="Close navigation"/>
-      <div className="relative h-dvh w-[min(320px,85vw)] bg-[var(--surface)] p-4 shadow-2xl">
-        <div className="mb-5 flex h-11 items-center justify-between"><strong>THIEPN Account</strong><button className="icon-button" onClick={()=>setDrawerOpen(false)} aria-label="Close navigation"><X size={20}/></button></div>
+    {drawerOpen?<div className="fixed inset-0 z-40 md:hidden">
+      <div className="absolute inset-0 bg-black/45" onMouseDown={()=>setDrawerOpen(false)} aria-hidden="true"/>
+      <div ref={drawerRef} className="relative h-dvh w-[min(320px,85vw)] bg-[var(--surface)] p-4 shadow-2xl" role="dialog" aria-modal="true" aria-label="Account navigation">
+        <div className="mb-5 flex h-11 items-center justify-between"><strong>THIEPN Account</strong><button ref={closeRef} className="icon-button" onClick={()=>setDrawerOpen(false)} aria-label="Close navigation"><X size={20}/></button></div>
         <Navigation onNavigate={()=>setDrawerOpen(false)}/>
         <div className="mt-8 border-t border-[var(--border)] pt-4">
           <button className="nav-secondary" onClick={theme.cycle}><Sun size={18}/>Theme: {theme.mode}</button>

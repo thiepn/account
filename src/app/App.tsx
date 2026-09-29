@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuthState } from "../account/hooks";
 import { AccountShell } from "../components/layout/AccountShell";
+import { AppErrorBoundary } from "../components/AppErrorBoundary";
 import { AppsPage, DataPage, DevicesPage, NotFoundPage, OverviewPage, PrivacyPage, ProfilePage, SecurityPage, SignInPage } from "../pages/Pages";
 
 function ProtectedAccount(){
@@ -9,7 +10,7 @@ function ProtectedAccount(){
   if(auth.data!=="signed-in")return <Navigate to="/auth/sign-in" replace/>;
   return <AccountShell/>;
 }
-export function App(){return <Routes>
+export function App(){return <AppErrorBoundary><Routes>
   <Route path="/auth/sign-in" element={<SignInPage/>}/>
   <Route element={<ProtectedAccount/>}>
     <Route path="/" element={<OverviewPage/>}/>
@@ -21,4 +22,4 @@ export function App(){return <Routes>
     <Route path="/privacy" element={<PrivacyPage/>}/>
     <Route path="*" element={<NotFoundPage/>}/>
   </Route>
-</Routes>;}
+</Routes></AppErrorBoundary>;}
