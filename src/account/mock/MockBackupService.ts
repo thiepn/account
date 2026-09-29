@@ -1,4 +1,5 @@
-import type { AppCloudDataDetail, BackupOperation, BackupPolicy, BackupService, BackupSnapshot, RestoreOperation, RestorePlan } from "../types";
+import type { AppCloudDataDetail, BackupOperation, BackupPolicy, BackupSnapshot, RestoreOperation, RestorePlan } from "../types";
+import type { BackupService } from "../service";
 
 const KEY="thiepn.account.mock.backup.v1";
 interface StoredState {
