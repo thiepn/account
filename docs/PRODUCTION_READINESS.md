@@ -10,7 +10,7 @@ The release candidate must pass:
 
 - Account CI typecheck;
 - Vitest unit/runtime invariants;
-- Playwright Chromium smoke/lifecycle tests;
+- Playwright Chromium, Firefox and WebKit smoke/lifecycle tests;
 - production Vite build;
 - direct-backend boundary scan;
 - mock/scenario/dev-runtime bundle exclusion;
@@ -60,12 +60,8 @@ These cannot be certified from repository code alone:
    - TMS60 backup/restore using disposable test state only;
    - Account deletion plan and cancellation using a disposable test Account only.
 6. **Device/browser matrix**
-   - Chrome desktop;
-   - Edge desktop;
-   - Firefox desktop;
-   - Android Chrome;
-   - Samsung Internet;
-   - iOS Safari when an iOS device is available.
+   - Automated before release: Chromium, Firefox and WebKit desktop engines.
+   - Manual hardware remains: Edge desktop sanity check, Android Chrome, Samsung Internet, and iOS Safari when an iOS device is available.
 7. **Accessibility/manual UX**
    - keyboard-only shell and dialogs;
    - 200% zoom;
