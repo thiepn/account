@@ -62,7 +62,7 @@ export interface BackupAppSnapshot {
 }
 export interface BackupSnapshot {
   id:string; createdAt:string; status:"creating"|"verified"|"unverified"|"failed"|"corrupted";
-  type:"automatic"|"manual"|"pre-restore"; destination:{type:"mock";label:string}; sizeBytes:number; apps:BackupAppSnapshot[];
+  type:"automatic"|"manual"|"pre-restore"; destination:{type:"mock"|"account-database"|"app-owned";label:string}; sizeBytes:number; apps:BackupAppSnapshot[];
   integrity:{status:"pending"|"verified"|"failed";verifiedAt?:string|undefined}; manifestVersion:number;
 }
 export interface BackupOperation { id:string; status:"queued"|"collecting"|"writing"|"verifying"|"completed"|"failed"; startedAt:string; completedAt?:string|undefined; backupId?:string|undefined; }

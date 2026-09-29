@@ -135,3 +135,31 @@ Only TMS60 currently reports an explicit successful sync timestamp from a canoni
 `retrySync()` and Account-level sync toggles deliberately remain unsupported in the real adapter until a common server command contract exists.
 
 The `account_sync_usage_connection` trigger bridges future `account_user_apps` usage into missing Account connections, but never changes an existing disconnected connection back to connected.
+
+
+## P17 backup and restore
+
+Production Account backup inventory is metadata-only and currently aggregates two real recovery systems:
+
+- Diet Copilot private recovery snapshots, including existing verification status/hash results.
+- TMS60 backup rows, now protected by a persisted SHA-256 state hash.
+
+`create_thiepn_account_backup()` creates snapshots only for connected apps where the user granted `backup.include`.
+
+Current Account-managed inclusion candidates:
+
+- Diet Copilot
+- TMS60
+
+TMS60 restore is browser-executable through `restore_thiepn_tms60_backup()`. The server:
+
+1. verifies ownership;
+2. recomputes the backup integrity hash;
+3. creates a pre-restore TMS60 safety backup when live state exists;
+4. advances the translation revision;
+5. replaces the live state atomically;
+6. records a durable `account_restore_operations` result.
+
+Diet snapshots are visible and verified but cannot be destructively applied from the browser. The existing Diet backend explicitly requires an operator-reviewed restore runbook/maintenance window, so the Account restore plan returns a blocker.
+
+No generic encryption/provider-storage claim is made by this phase.

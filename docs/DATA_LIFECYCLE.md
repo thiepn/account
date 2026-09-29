@@ -54,3 +54,27 @@ Cloud data spans multiple owner-scoped Diet tables. Account aggregates metadata 
 ## Core
 
 This inventory does not mean THIEPN Core Sync Protocol v1 has been implemented across the ecosystem. Core protocol rollout remains separate infrastructure work.
+
+
+## Recovery plane
+
+P17 adds a common Account view over app-owned recovery artifacts without pretending they share the same storage implementation.
+
+### Diet
+
+Private snapshots contain complete owner-scoped Diet state, SHA-256 payload/schema verification and row-count/schema validation. Account can inventory them, but browser restore is blocked because the Diet recovery contract requires operator review.
+
+### TMS60
+
+Backups store one translation snapshot. P17 adds a persisted SHA-256 state hash to all existing/future backup rows.
+
+An Account restore:
+
+- verifies the backup hash;
+- makes a safety backup of the current translation first;
+- writes the selected historical state as a new higher revision;
+- leaves a durable restore-operation record.
+
+### Backup inclusion
+
+`backup.include` is an explicit optional Account permission. Revoking it stops future Account-requested backups; it does not delete historical recovery artifacts.

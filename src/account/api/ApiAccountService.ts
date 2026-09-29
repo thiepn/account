@@ -78,6 +78,30 @@ const inventoryRowSchema=z.object({
   last_successful_sync_at:z.string().nullable(),
   sync_supported:z.boolean(),
 });
+
+const backupInventoryRowSchema=z.object({
+  backup_ref:z.string(),
+  app_slug:z.string(),
+  app_name:z.string(),
+  created_at:z.string(),
+  backup_status:z.enum(["verified","unverified","corrupted"]),
+  backup_type:z.enum(["automatic","manual","pre-restore"]),
+  size_bytes:numericBigint,
+  source_revision:nullableNumericBigint,
+  schema_version:z.number(),
+  metadata:z.record(z.string(),z.unknown()),
+});
+const restoreOperationRowSchema=z.object({
+  id:z.string().uuid(),
+  backup_ref:z.string(),
+  app_slug:z.string(),
+  status:z.enum(["restoring","completed","failed"]),
+  started_at:z.string(),
+  completed_at:z.string().nullable(),
+  safety_backup_ref:z.string().nullable(),
+  result:z.record(z.string(),z.unknown()).nullable(),
+  error_code:z.string().nullable(),
+});
 type ProfileRow=z.infer<typeof profileRowSchema>;
 
 const capabilities:AccountCapabilities={
@@ -239,6 +263,50 @@ async function loadRealDataInventory(supabase:ReturnType<typeof getAccountSupaba
     },
     clients:[],
   }));
+}
+
+async function loadRealBackups(supabase:ReturnType<typeof getAccountSupabaseClient>){
+  const {data,error}=await supabase.rpc("get_thiepn_account_backup_inventory");
+  if(error)throw mapRpcError(error,"BACKUP_INVENTORY_FAILED");
+  const parsed=z.array(backupInventoryRowSchema).safeParse(data??[]);
+  if(!parsed.success)throw normalizedError("BACKUP_INVENTORY_SCHEMA_INVALID","server",false);
+  return parsed.data.map((row)=>({
+    id:row.backup_ref,
+    createdAt:row.created_at,
+    status:row.backup_status,
+    type:row.backup_type,
+    destination:{
+      type:"app-owned" as const,
+      label:row.app_slug==="diet"?"Diet recovery storage":"TMS60 Account backup storage",
+    },
+    sizeBytes:row.size_bytes,
+    integrity:{
+      status:row.backup_status==="verified"?"verified" as const:row.backup_status==="corrupted"?"failed" as const:"pending" as const,
+      verifiedAt:typeof row.metadata["verifiedAt"]==="string"?row.metadata["verifiedAt"]:undefined,
+    },
+    manifestVersion:1,
+    apps:[{
+      appId:row.app_slug,
+      appName:row.app_name,
+      namespaceId:`${row.app_slug}:default`,
+      sourceGeneration:1,
+      sourceRevision:row.source_revision??0,
+      schemaVersion:row.schema_version,
+      sizeBytes:row.size_bytes,
+    }],
+  }));
+}
+
+async function getRealBackupPolicy(supabase:ReturnType<typeof getAccountSupabaseClient>){
+  const {data,error}=await supabase
+    .from("account_app_grants")
+    .select("app_slug,status")
+    .eq("permission_id","backup.include");
+  if(error)throw mapError(error,"BACKUP_POLICY_READ_FAILED");
+  const rows=z.array(z.object({app_slug:z.string(),status:z.enum(["granted","denied"])})).safeParse(data??[]);
+  if(!rows.success)throw normalizedError("BACKUP_POLICY_SCHEMA_INVALID","server",false);
+  const includedApps=rows.data.filter((row)=>row.status==="granted").map((row)=>row.app_slug);
+  return {enabled:includedApps.length>0,frequency:"manual-only" as const,includedApps};
 }
 
 async function listRealSessions(supabase:ReturnType<typeof getAccountSupabaseClient>){
@@ -452,18 +520,146 @@ export function createApiAccountService():AccountService{
       async retrySync(){return unsupported();},
       async updateSyncConfiguration(){return unsupported();},
     },
-    backup:{getSummary:()=>unsupported(),listBackups:()=>unsupported(),getBackup:()=>unsupported(),createBackup:()=>unsupported(),getPolicy:()=>unsupported(),updatePolicy:()=>unsupported(),planRestore:()=>unsupported(),startRestore:()=>unsupported(),getRestoreOperation:()=>unsupported()},
+    backup:{
+      async getSummary(){
+        const [backups,policy]=await Promise.all([loadRealBackups(supabase),getRealBackupPolicy(supabase)]);
+        return {lastSuccessful:backups.find((item)=>item.status==="verified"),policy};
+      },
+      async listBackups(){return loadRealBackups(supabase);},
+      async getBackup(id){
+        const backups=await loadRealBackups(supabase);
+        return backups.find((item)=>item.id===id)??null;
+      },
+      async createBackup(){
+        const policy=await getRealBackupPolicy(supabase);
+        if(!policy.includedApps.length)throw normalizedError("NO_BACKUP_APPS_INCLUDED","conflict",false);
+        const startedAt=new Date().toISOString();
+        const {data,error}=await supabase.rpc("create_thiepn_account_backup");
+        if(error)throw mapRpcError(error,"BACKUP_CREATE_FAILED");
+        const parsed=z.object({created:z.array(z.string())}).safeParse(data);
+        if(!parsed.success)throw normalizedError("BACKUP_CREATE_SCHEMA_INVALID","server",false);
+        if(!parsed.data.created.length)throw normalizedError("NO_BACKUP_DATA_AVAILABLE","conflict",false);
+        return {
+          id:`backup-op:${Date.now()}`,
+          status:"completed" as const,
+          startedAt,
+          completedAt:new Date().toISOString(),
+          backupId:parsed.data.created[0],
+        };
+      },
+      async getPolicy(){return getRealBackupPolicy(supabase);},
+      async updatePolicy(){return unsupported();},
+      async planRestore(backupId,selectedApps){
+        const backup=await service.backup.getBackup(backupId);
+        if(!backup)throw normalizedError("BACKUP_NOT_FOUND","conflict",false);
+        const app=backup.apps[0];
+        const selected=app&&selectedApps.includes(app.appId)?[app.appId]:[];
+        const blockers:string[]=[];
+        const warnings:string[]=[];
+        if(backup.status!=="verified")blockers.push("This backup is not verified.");
+        if(!selected.length)blockers.push("Select the app in this backup to continue.");
+        if(app?.appId==="diet")blockers.push("Diet restore requires the operator-reviewed recovery runbook and is not executable from the Account browser.");
+        if(app?.appId==="tms60"){
+          const live=await service.data.getAppData("tms60");
+          if(live?.revision!==undefined&&live.revision>app.sourceRevision)warnings.push("Current TMS60 cloud data is newer than this backup.");
+        }
+        return {
+          id:`real:${encodeURIComponent(backup.id)}`,
+          backupId:backup.id,
+          selectedApps:selected,
+          blockers,
+          warnings,
+          safetySnapshotRequired:app?.appId==="tms60",
+          requiresReauthentication:false,
+          expiresAt:new Date(Date.now()+10*60_000).toISOString(),
+        };
+      },
+      async startRestore(planId){
+        if(!planId.startsWith("real:"))throw normalizedError("RESTORE_PLAN_INVALID","validation",false);
+        const backupId=decodeURIComponent(planId.slice(5));
+        if(!backupId.startsWith("tms60:"))throw normalizedError("RESTORE_NOT_BROWSER_EXECUTABLE","unsupported",false);
+        const rawId=backupId.slice("tms60:".length);
+        const idCheck=z.string().uuid().safeParse(rawId);
+        if(!idCheck.success)throw normalizedError("BACKUP_ID_INVALID","validation",false);
+        const {data,error}=await supabase.rpc("restore_thiepn_tms60_backup",{p_backup_id:idCheck.data});
+        if(error)throw mapRpcError(error,"RESTORE_FAILED");
+        const parsed=z.object({
+          operationId:z.string().uuid(),
+          status:z.literal("completed"),
+          safetyBackupRef:z.string().nullable(),
+          newRevision:numericBigint,
+          translationId:z.string(),
+        }).safeParse(data);
+        if(!parsed.success)throw normalizedError("RESTORE_RESULT_SCHEMA_INVALID","server",false);
+        return {
+          id:parsed.data.operationId,
+          backupId,
+          selectedApps:["tms60"],
+          status:"completed" as const,
+          startedAt:new Date().toISOString(),
+          completedAt:new Date().toISOString(),
+          safetyBackupId:parsed.data.safetyBackupRef??undefined,
+          appResults:[{appId:"tms60",status:"restored" as const,verified:true,newGeneration:parsed.data.newRevision}],
+        };
+      },
+      async getRestoreOperation(id){
+        const idCheck=z.string().uuid().safeParse(id);
+        if(!idCheck.success)return null;
+        const {data,error}=await supabase
+          .from("account_restore_operations")
+          .select("id,backup_ref,app_slug,status,started_at,completed_at,safety_backup_ref,result,error_code")
+          .eq("id",idCheck.data)
+          .maybeSingle();
+        if(error)throw mapError(error,"RESTORE_OPERATION_READ_FAILED");
+        if(!data)return null;
+        const parsed=restoreOperationRowSchema.safeParse(data);
+        if(!parsed.success)throw normalizedError("RESTORE_OPERATION_SCHEMA_INVALID","server",false);
+        const result=parsed.data.result;
+        const newRevision=typeof result?.["newRevision"]==="number"?result["newRevision"]:typeof result?.["newRevision"]==="string"?Number(result["newRevision"]):undefined;
+        return {
+          id:parsed.data.id,
+          backupId:parsed.data.backup_ref,
+          selectedApps:[parsed.data.app_slug],
+          status:parsed.data.status==="completed"?"completed" as const:parsed.data.status==="failed"?"failed" as const:"restoring" as const,
+          startedAt:parsed.data.started_at,
+          completedAt:parsed.data.completed_at??undefined,
+          safetyBackupId:parsed.data.safety_backup_ref??undefined,
+          appResults:parsed.data.status==="completed"?[{
+            appId:parsed.data.app_slug,
+            status:"restored" as const,
+            verified:true,
+            newGeneration:newRevision,
+          }]:parsed.data.status==="failed"?[{
+            appId:parsed.data.app_slug,
+            status:"failed" as const,
+            verified:false,
+            errorCode:parsed.data.error_code??"RESTORE_FAILED",
+          }]:undefined,
+        };
+      },
+    },
     privacy:{getSummary:()=>unsupported(),requestExport:()=>unsupported(),listExports:()=>unsupported(),getExport:()=>unsupported(),getExportContent:()=>unsupported(),planAppDataDeletion:()=>unsupported(),startAppDataDeletion:()=>unsupported(),planAccountDeletion:()=>unsupported(),requestAccountDeletion:()=>unsupported(),getAccountDeletion:()=>unsupported(),cancelAccountDeletion:()=>unsupported()},
     capabilities:{async getCapabilities(){return capabilities;}},
     async getOverview():Promise<Overview>{
       const {identity}=await getIdentityAndProfile();
+      const [security,devices,apps,data,backup]=await Promise.all([
+        service.security.getSummary(),
+        service.devices.listDevices(),
+        service.apps.listApps(),
+        service.data.getSummary(),
+        service.backup.getSummary(),
+      ]);
       return {
         identity,
         capabilities,
-        security:await service.security.getSummary(),
-        devices:await service.devices.listDevices(),
-        apps:await service.apps.listApps(),
-        data:await service.data.getSummary(),
+        security,
+        devices,
+        apps,
+        data:{
+          ...data,
+          lastBackupAt:backup.lastSuccessful?.createdAt,
+          backupStatus:backup.lastSuccessful?"verified":data.backupStatus,
+        },
       };
     },
   };
