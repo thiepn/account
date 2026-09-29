@@ -11,13 +11,20 @@ export function useSecurityEvent(id:string|undefined){const s=useAccountService(
 export function useDevices(){const s=useAccountService();return useQuery({queryKey:["devices"],queryFn:()=>s.devices.listDevices()});}
 export function useDevice(id:string|undefined){const s=useAccountService();return useQuery({queryKey:["devices",id],queryFn:()=>s.devices.getDevice(id!),enabled:Boolean(id)});}
 export function useApps(){const s=useAccountService();return useQuery({queryKey:["apps"],queryFn:()=>s.apps.listApps()});}
+export function useApp(id:string|undefined){const s=useAccountService();return useQuery({queryKey:["apps",id],queryFn:()=>s.apps.getApp(id!),enabled:Boolean(id)});}
 export function useDataSummary(){const s=useAccountService();return useQuery({queryKey:["data","summary"],queryFn:()=>s.data.getSummary()});}
 export function usePrivacySummary(){const s=useAccountService();return useQuery({queryKey:["privacy","summary"],queryFn:()=>s.privacy.getSummary()});}
+
 export function useUpdateProfile(){const s=useAccountService();const q=useQueryClient();return useMutation({mutationFn:(input:UpdateProfileInput)=>s.profile.updateProfile(input),onSuccess:(profile)=>{q.setQueryData(["profile"],profile);void q.invalidateQueries({queryKey:["overview"]});}});}
-function useRevocation(mutationFn:(id:string)=>Promise<void>){
-  const q=useQueryClient();
-  return useMutation({mutationFn,onSuccess:()=>{void q.invalidateQueries({queryKey:["devices"]});void q.invalidateQueries({queryKey:["security"]});void q.invalidateQueries({queryKey:["overview"]});}});
-}
+function useRevocation(mutationFn:(id:string)=>Promise<void>){const q=useQueryClient();return useMutation({mutationFn,onSuccess:()=>{void q.invalidateQueries({queryKey:["devices"]});void q.invalidateQueries({queryKey:["security"]});void q.invalidateQueries({queryKey:["overview"]});}});}
 export function useRevokeSession(){const s=useAccountService();return useRevocation((id)=>s.devices.revokeSession(id));}
 export function useRevokeDevice(){const s=useAccountService();return useRevocation((id)=>s.devices.revokeDevice(id));}
 export function useRevokeOtherSessions(){const s=useAccountService();const q=useQueryClient();return useMutation({mutationFn:()=>s.devices.revokeOtherSessions(),onSuccess:()=>{void q.invalidateQueries({queryKey:["devices"]});void q.invalidateQueries({queryKey:["security"]});void q.invalidateQueries({queryKey:["overview"]});}});}
+
+function useAppMutation<T extends {appId:string}>(mutationFn:(input:T)=>Promise<unknown>){
+  const q=useQueryClient();
+  return useMutation({mutationFn,onSuccess:(_result,input)=>{void q.invalidateQueries({queryKey:["apps"]});void q.invalidateQueries({queryKey:["apps",input.appId]});void q.invalidateQueries({queryKey:["security"]});void q.invalidateQueries({queryKey:["overview"]});}});
+}
+export function useGrantPermission(){const s=useAccountService();return useAppMutation(({appId,permissionId}:{appId:string;permissionId:string})=>s.apps.grantPermission(appId,permissionId));}
+export function useRevokePermission(){const s=useAccountService();return useAppMutation(({appId,permissionId}:{appId:string;permissionId:string})=>s.apps.revokePermission(appId,permissionId));}
+export function useDisconnectApp(){const s=useAccountService();return useAppMutation(({appId}:{appId:string})=>s.apps.disconnect(appId));}

@@ -1,22 +1,20 @@
-import type { AccountCapabilities, AccountProfile, AuthState, ConnectedAppSummary, DataSummary, DeviceSummary, Overview, SecurityEvent, SecuritySummary, SessionSummary } from "./types";
+import type { AccountCapabilities, AccountProfile, AuthState, ConnectedAppDetail, ConnectedAppSummary, DataSummary, DeviceSummary, Overview, SecurityEvent, SecuritySummary, SessionSummary } from "./types";
 
 export interface AuthService { getState():Promise<AuthState>; signIn():Promise<void>; signOut():Promise<void>; }
 export interface UpdateProfileInput { displayName:string; preferredLanguage:string; timezone:string; }
 export interface ProfileService { getProfile():Promise<AccountProfile>; updateProfile(input:UpdateProfileInput):Promise<AccountProfile>; }
-export interface SecurityService {
-  getSummary():Promise<SecuritySummary>;
-  listActivity():Promise<SecurityEvent[]>;
-  getEvent(id:string):Promise<SecurityEvent|null>;
-}
+export interface SecurityService { getSummary():Promise<SecuritySummary>; listActivity():Promise<SecurityEvent[]>; getEvent(id:string):Promise<SecurityEvent|null>; }
 export interface DeviceService {
-  listDevices():Promise<DeviceSummary[]>;
-  getDevice(id:string):Promise<DeviceSummary|null>;
-  listSessions():Promise<SessionSummary[]>;
-  revokeSession(id:string):Promise<void>;
-  revokeDevice(id:string):Promise<void>;
-  revokeOtherSessions():Promise<void>;
+  listDevices():Promise<DeviceSummary[]>; getDevice(id:string):Promise<DeviceSummary|null>; listSessions():Promise<SessionSummary[]>;
+  revokeSession(id:string):Promise<void>; revokeDevice(id:string):Promise<void>; revokeOtherSessions():Promise<void>;
 }
-export interface AppsService { listApps():Promise<ConnectedAppSummary[]>; }
+export interface AppsService {
+  listApps():Promise<ConnectedAppSummary[]>;
+  getApp(appId:string):Promise<ConnectedAppDetail|null>;
+  grantPermission(appId:string,permissionId:string):Promise<ConnectedAppDetail>;
+  revokePermission(appId:string,permissionId:string):Promise<ConnectedAppDetail>;
+  disconnect(appId:string):Promise<void>;
+}
 export interface DataService { getSummary():Promise<DataSummary>; }
 export interface PrivacyService { getSummary():Promise<{exportAvailable:boolean;appDeletionAvailable:boolean;accountDeletionAvailable:boolean}>; }
 export interface CapabilityService { getCapabilities():Promise<AccountCapabilities>; }

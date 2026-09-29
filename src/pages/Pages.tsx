@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useApps, useDataSummary, useDevice, useDevices, useOverview, usePrivacySummary, useProfile, useRevokeDevice, useRevokeOtherSessions, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useUpdateProfile } from "../account/hooks";
+import { useApp, useApps, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useProfile, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useUpdateProfile } from "../account/hooks";
 import { useAccountService } from "../account/context";
 import { useTheme } from "../app/theme";
 import { Panel } from "../components/ui/Panel";
@@ -207,7 +207,42 @@ export function DeviceDetailPage(){
     <Panel title="Active sessions"><div className="device-list">{device.sessions.map((session)=><div className="device-row" key={session.id}><div><strong>{session.clientName}</strong><small>{session.current?"Current session":`Last active ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(session.lastActivityAt))}`}</small></div>{session.current?<StatusBadge tone="success">Current</StatusBadge>:<Button variant="ghost" onClick={()=>setTarget({id:session.id,name:session.clientName})}>Sign out</Button>}</div>)}</div></Panel>
   </div><ConfirmDialog open={Boolean(target)} title={`Sign out ${target?.name??"session"}?`} description="This session will need to sign in again. Other sessions are unaffected." confirmLabel="Sign out" danger pending={revokeSession.isPending} onCancel={()=>setTarget(null)} onConfirm={async()=>{if(!target)return;await revokeSession.mutateAsync(target.id);setTarget(null);}}/></>;
 }
-export function AppsPage(){const q=useApps();if(q.isLoading)return <Loading/>;return <><PageHeader title="Apps" description="Applications currently connected to your THIEPN Account."/><div className="space-y-3">{q.data?.length?q.data.map((app)=><Panel key={app.id} title={app.name} description={app.status}><p className="text-sm text-[var(--muted)]">Account access and permission management will be connected through the real registry in P15.</p></Panel>):<Panel title="No connected apps"><p className="text-sm text-[var(--muted)]">Apps you connect will appear here.</p></Panel>}</div></>;}
+export function AppsPage(){
+  const q=useApps();
+  if(q.isLoading)return <Loading/>;
+  const apps=q.data??[];
+  return <><PageHeader title="Apps" description="Applications currently connected to your THIEPN Account."/>
+    {apps.length?<div className="space-y-3">{apps.map((app)=><Link key={app.id} to={`/apps/${app.id}`} className="block no-underline"><Panel title={app.name} description={`${app.permissionCount} granted permission${app.permissionCount===1?"":"s"}`}><div className="flex items-center justify-between gap-4"><p className="m-0 text-sm text-[var(--muted)]">Manage connection and Account access.</p><StatusBadge tone={app.status==="limited"?"warning":app.status==="error"?"danger":"success"}>{app.status}</StatusBadge></div></Panel></Link>)}</div>:<Panel title="Connected apps"><EmptyState title="No connected apps" description="Apps will appear here after they connect to your THIEPN Account."/></Panel>}
+  </>;
+}
+
+export function AppDetailPage(){
+  const {appId}=useParams();
+  const q=useApp(appId);
+  const grant=useGrantPermission();
+  const revoke=useRevokePermission();
+  const disconnect=useDisconnectApp();
+  const navigate=useNavigate();
+  const [disconnectOpen,setDisconnectOpen]=useState(false);
+  if(q.isLoading)return <Loading/>;
+  if(!q.data)return <><PageHeader title="App not connected" description="This application does not have an Account connection."/><Link className="inline-link" to="/apps">Back to connected apps</Link></>;
+  const {app,connection}=q.data;
+  const granted=new Map(connection.grantedPermissions.map((permission)=>[permission.permissionId,permission.status]));
+  const mutationPending=grant.isPending||revoke.isPending;
+  return <><PageHeader title={app.name} description={app.description}/>
+    {connection.status==="disconnected"?<Notice>This app is disconnected. Existing cloud data, if any, remains separate from the connection.</Notice>:null}
+    {connection.status==="limited"?<Notice tone="warning">This app needs an Account access review.</Notice>:null}
+    <div className="mt-4 space-y-4">
+      <Panel title="Connection"><dl className="detail-grid"><div><dt>Status</dt><dd><StatusBadge tone={connection.status==="connected"?"success":connection.status==="limited"?"warning":"danger"}>{connection.status}</StatusBadge></dd></div>{connection.connectedAt?<div><dt>Connected</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(connection.connectedAt))}</dd></div>:null}{connection.lastUsedAt?<div><dt>Last used</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(connection.lastUsedAt))}</dd></div>:null}<div><dt>App ID</dt><dd className="font-mono text-sm">{app.id}</dd></div></dl></Panel>
+      <Panel title="Account access" description="Required access is part of the connection. Optional access can be changed independently.">
+        <div className="permission-list">{app.availablePermissions.map((permission)=>{const status=granted.get(permission.id)??"denied";return <div className="permission-row" key={permission.id}><div><strong>{permission.name}</strong><small>{permission.description}</small></div><div className="permission-actions">{permission.required?<StatusBadge>Required</StatusBadge>:status==="granted"?<Button variant="ghost" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void revoke.mutateAsync({appId:app.id,permissionId:permission.id})}>Revoke</Button>:<Button variant="secondary" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void grant.mutateAsync({appId:app.id,permissionId:permission.id})}>Allow</Button>}<StatusBadge tone={status==="granted"?"success":"neutral"}>{status}</StatusBadge></div></div>;})}</div>
+      </Panel>
+      <Panel title="Data & sync" description="Detailed live cloud-data state is owned by the P8 Data service."><Link className="inline-link" to={`/data?app=${encodeURIComponent(app.id)}`}>View data status</Link></Panel>
+      {connection.status!=="disconnected"?<Panel title="Disconnect"><p className="text-sm text-[var(--muted)]">Disconnecting removes this app's Account access. It does not delete existing cloud data or backups.</p><Button variant="danger" onClick={()=>setDisconnectOpen(true)}>Disconnect {app.name}</Button></Panel>:null}
+    </div>
+    <ConfirmDialog open={disconnectOpen} title={`Disconnect ${app.name}?`} description="The app will lose THIEPN Account access. Existing cloud data is retained and is not deleted by this action." confirmLabel="Disconnect" danger pending={disconnect.isPending} onCancel={()=>setDisconnectOpen(false)} onConfirm={async()=>{await disconnect.mutateAsync({appId:app.id});setDisconnectOpen(false);navigate("/apps",{replace:true});}}/>
+  </>;
+}
 export function DataPage(){const q=useDataSummary();if(q.isLoading)return <Loading/>;if(!q.data)return <div>Could not load cloud data status.</div>;return <><PageHeader title="Data & Backup" description="Live cloud data, synchronization and recovery status."/><div className="grid gap-4 lg:grid-cols-2"><Panel title="Cloud data" description={q.data.syncStatus}><p className="text-sm text-[var(--muted)]">{q.data.appCount} app namespaces in this mock state.</p></Panel><Panel title="Backup" description={q.data.backupStatus}><p className="text-sm text-[var(--muted)]">Real backup integration is intentionally deferred until the live-data contract is proven.</p></Panel></div></>;}
 export function PrivacyPage(){const q=usePrivacySummary();if(q.isLoading)return <Loading/>;return <><PageHeader title="Privacy" description="Export, deletion and Account lifecycle controls."/><Panel title="Lifecycle controls"><dl className="detail-grid"><div><dt>Export</dt><dd>{q.data?.exportAvailable?"Available in mock contract":"Unavailable"}</dd></div><div><dt>App-data deletion</dt><dd>{q.data?.appDeletionAvailable?"Available":"Not connected yet"}</dd></div><div><dt>Account deletion</dt><dd>{q.data?.accountDeletionAvailable?"Available":"Not connected yet"}</dd></div></dl></Panel></>;}
 
