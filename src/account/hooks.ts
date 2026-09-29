@@ -13,6 +13,10 @@ export function useDevice(id:string|undefined){const s=useAccountService();retur
 export function useApps(){const s=useAccountService();return useQuery({queryKey:["apps"],queryFn:()=>s.apps.listApps()});}
 export function useApp(id:string|undefined){const s=useAccountService();return useQuery({queryKey:["apps",id],queryFn:()=>s.apps.getApp(id!),enabled:Boolean(id)});}
 export function useDataSummary(){const s=useAccountService();return useQuery({queryKey:["data","summary"],queryFn:()=>s.data.getSummary()});}
+export function useAppDataList(){const s=useAccountService();return useQuery({queryKey:["data","apps"],queryFn:()=>s.data.listAppData()});}
+export function useAppData(id:string|undefined){const s=useAccountService();return useQuery({queryKey:["data","apps",id],queryFn:()=>s.data.getAppData(id!),enabled:Boolean(id)});}
+export function useRetrySync(){const s=useAccountService();const q=useQueryClient();return useMutation({mutationFn:(appId:string)=>s.data.retrySync(appId),onSuccess:(_detail,appId)=>{void q.invalidateQueries({queryKey:["data"]});void q.invalidateQueries({queryKey:["data","apps",appId]});void q.invalidateQueries({queryKey:["overview"]});}});}
+export function useUpdateSyncConfiguration(){const s=useAccountService();const q=useQueryClient();return useMutation({mutationFn:({appId,enabled}:{appId:string;enabled:boolean})=>s.data.updateSyncConfiguration(appId,enabled),onSuccess:(_detail,input)=>{void q.invalidateQueries({queryKey:["data"]});void q.invalidateQueries({queryKey:["data","apps",input.appId]});void q.invalidateQueries({queryKey:["overview"]});}});}
 export function usePrivacySummary(){const s=useAccountService();return useQuery({queryKey:["privacy","summary"],queryFn:()=>s.privacy.getSummary()});}
 
 export function useUpdateProfile(){const s=useAccountService();const q=useQueryClient();return useMutation({mutationFn:(input:UpdateProfileInput)=>s.profile.updateProfile(input),onSuccess:(profile)=>{q.setQueryData(["profile"],profile);void q.invalidateQueries({queryKey:["overview"]});}});}

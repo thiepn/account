@@ -44,7 +44,19 @@ export interface ConnectedAppSummary {
 }
 export interface ConnectedAppDetail { app:RegisteredApp; connection:AppConnection; }
 
-export interface DataSummary { totalStorageBytes:number; appCount:number; syncStatus:"healthy"|"attention"|"unavailable"; lastBackupAt?:string|undefined; backupStatus:"verified"|"failed"|"none"; }
+export type SyncStatus="up-to-date"|"syncing"|"pending"|"delayed"|"offline"|"conflict"|"error"|"disabled"|"unavailable";
+export interface SyncIssueSummary { code:string; kind:"network"|"authorization"|"conflict"|"version"|"server"|"unknown"; message:string; retryable:boolean; }
+export interface AppSyncState { status:SyncStatus; lastAttemptAt?:string|undefined; lastSuccessfulSyncAt?:string|undefined; lastDataChangeAt?:string|undefined; pendingChanges?:number|undefined; error?:SyncIssueSummary|undefined; }
+export interface SyncConfiguration { supported:boolean; enabled:boolean; userControllable:boolean; }
+export interface SyncClientSummary { id:string; label:string; lastSuccessfulSyncAt?:string|undefined; status:"up-to-date"|"pending"|"offline"|"reconciliation-required"; }
+export interface AppCloudDataSummary {
+  appId:string; appName:string; namespaceStatus:"active"|"retained"|"archived";
+  storageBytes:number; recordCount?:number|undefined; updatedAt?:string|undefined;
+  sync:AppSyncState; configuration:SyncConfiguration;
+}
+export interface AppCloudDataDetail extends AppCloudDataSummary { clients:SyncClientSummary[]; }
+
+export interface DataSummary { totalStorageBytes:number; appCount:number; syncStatus:"healthy"|"attention"|"unavailable"; attentionCount:number; lastBackupAt?:string|undefined; backupStatus:"verified"|"failed"|"none"; }
 export interface Overview { identity:AccountIdentity; security:SecuritySummary; devices:DeviceSummary[]; apps:ConnectedAppSummary[]; data:DataSummary; }
 export interface AccountCapabilities { profileRead:boolean; profileWrite:boolean; securityRead:boolean; devicesRead:boolean; appsRead:boolean; dataRead:boolean; privacyRead:boolean; }
 export interface AccountError {

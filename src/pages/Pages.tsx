@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useApp, useApps, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useProfile, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useUpdateProfile } from "../account/hooks";
+import { useApp, useAppData, useAppDataList, useApps, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useProfile, useRetrySync, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
 import { useAccountService } from "../account/context";
 import { useTheme } from "../app/theme";
 import { Panel } from "../components/ui/Panel";
@@ -243,7 +243,44 @@ export function AppDetailPage(){
     <ConfirmDialog open={disconnectOpen} title={`Disconnect ${app.name}?`} description="The app will lose THIEPN Account access. Existing cloud data is retained and is not deleted by this action." confirmLabel="Disconnect" danger pending={disconnect.isPending} onCancel={()=>setDisconnectOpen(false)} onConfirm={async()=>{await disconnect.mutateAsync({appId:app.id});setDisconnectOpen(false);navigate("/apps",{replace:true});}}/>
   </>;
 }
-export function DataPage(){const q=useDataSummary();if(q.isLoading)return <Loading/>;if(!q.data)return <div>Could not load cloud data status.</div>;return <><PageHeader title="Data & Backup" description="Live cloud data, synchronization and recovery status."/><div className="grid gap-4 lg:grid-cols-2"><Panel title="Cloud data" description={q.data.syncStatus}><p className="text-sm text-[var(--muted)]">{q.data.appCount} app namespaces in this mock state.</p></Panel><Panel title="Backup" description={q.data.backupStatus}><p className="text-sm text-[var(--muted)]">Real backup integration is intentionally deferred until the live-data contract is proven.</p></Panel></div></>;}
+function syncTone(status:string):"neutral"|"success"|"warning"|"danger"{return status==="up-to-date"?"success":status==="conflict"||status==="error"?"danger":status==="delayed"||status==="pending"||status==="syncing"?"warning":"neutral";}
+
+export function DataPage(){
+  const summary=useDataSummary();const list=useAppDataList();
+  if(summary.isLoading||list.isLoading)return <Loading/>;
+  if(!summary.data)return <div>Could not load cloud data status.</div>;
+  const active=(list.data??[]).filter((item)=>item.namespaceStatus==="active");
+  const retained=(list.data??[]).filter((item)=>item.namespaceStatus!=="active");
+  return <><PageHeader title="Data & Backup" description="Live cloud data, synchronization and recovery status."/>
+    {summary.data.attentionCount?<Notice tone="warning">{summary.data.attentionCount} app{summary.data.attentionCount===1?" needs":"s need"} sync attention.</Notice>:null}
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <Panel title="Cloud data" description={`${summary.data.appCount} stored app namespace${summary.data.appCount===1?"":"s"} · ${new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:1}).format(summary.data.totalStorageBytes/1_000_000)}`}>
+        {active.length?<div className="data-list">{active.map((item)=><Link className="data-row" key={item.appId} to={`/data/apps/${item.appId}`}><span><strong>{item.appName}</strong><small>{item.sync.lastSuccessfulSyncAt?`Last successful sync ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.sync.lastSuccessfulSyncAt))}`:"No successful sync yet"}</small></span><StatusBadge tone={syncTone(item.sync.status)}>{item.sync.status}</StatusBadge></Link>)}</div>:<EmptyState title="No cloud data" description="App cloud data will appear here after a connected app stores it."/>}
+      </Panel>
+      <Panel title="Backup" description={summary.data.backupStatus}><p className="text-sm text-[var(--muted)]">Backup status is separate from cloud-sync status. P9 adds immutable history and controlled restore workflows.</p></Panel>
+    </div>
+    {retained.length?<div className="mt-4"><Panel title="Retained app data" description="Disconnected apps can retain cloud data until you explicitly delete it."><div className="data-list">{retained.map((item)=><Link className="data-row" key={item.appId} to={`/data/apps/${item.appId}`}><span><strong>{item.appName}</strong><small>Cloud data retained</small></span><StatusBadge>retained</StatusBadge></Link>)}</div></Panel></div>:null}
+  </>;
+}
+
+export function AppDataPage(){
+  const {appId}=useParams();const q=useAppData(appId);const retry=useRetrySync();const configure=useUpdateSyncConfiguration();const [disableOpen,setDisableOpen]=useState(false);
+  if(q.isLoading)return <Loading/>;
+  if(!q.data)return <><PageHeader title="Cloud data unavailable" description="No cloud-data namespace exists for this app."/><Link className="inline-link" to="/data">Back to Data & Backup</Link></>;
+  const item=q.data;
+  return <><PageHeader title={item.appName} description="Cloud data and synchronization state."/>
+    {item.sync.error?<Notice tone={item.sync.error.kind==="conflict"?"warning":"error"}>{item.sync.error.message}</Notice>:null}
+    {item.namespaceStatus==="retained"?<Notice>This app is disconnected or archived. Its existing cloud data remains stored, but synchronization is unavailable.</Notice>:null}
+    <div className="mt-4 space-y-4">
+      <Panel title="Cloud sync"><div className="flex flex-wrap items-center justify-between gap-4"><div><StatusBadge tone={syncTone(item.sync.status)}>{item.sync.status}</StatusBadge>{item.sync.lastSuccessfulSyncAt?<p className="mt-2 text-sm text-[var(--muted)]">Last successful sync: {new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.sync.lastSuccessfulSyncAt))}</p>:null}</div><div className="flex gap-2">{item.sync.error?.retryable?<Button disabled={retry.isPending} onClick={()=>void retry.mutateAsync(item.appId)}>{retry.isPending?"Retrying…":"Retry"}</Button>:null}{item.sync.status==="conflict"?<Link className="inline-link" to={`/apps/${item.appId}`}>Open app access</Link>:null}</div></div></Panel>
+      <Panel title="Cloud data"><dl className="detail-grid"><div><dt>Storage</dt><dd>{new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:2}).format(item.storageBytes/1_000_000)}</dd></div>{item.recordCount!==undefined?<div><dt>Records</dt><dd>{item.recordCount}</dd></div>:null}<div><dt>Namespace</dt><dd>{item.namespaceStatus}</dd></div></dl></Panel>
+      {item.clients.length?<Panel title="Sync clients"><div className="device-list">{item.clients.map((client)=><div className="device-row" key={client.id}><div><strong>{client.label}</strong><small>{client.lastSuccessfulSyncAt?new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(client.lastSuccessfulSyncAt)):"Never synced"}</small></div><StatusBadge tone={client.status==="up-to-date"?"success":client.status==="reconciliation-required"?"warning":"neutral"}>{client.status}</StatusBadge></div>)}</div></Panel>:null}
+      {item.configuration.supported&&item.configuration.userControllable&&item.namespaceStatus==="active"?<Panel title="Sync settings" description="Disabling sync does not delete existing cloud data.">{item.configuration.enabled?<Button variant="secondary" onClick={()=>setDisableOpen(true)}>Disable cloud sync</Button>:<Button disabled={configure.isPending} onClick={()=>void configure.mutateAsync({appId:item.appId,enabled:true})}>{configure.isPending?"Enabling…":"Enable cloud sync"}</Button>}</Panel>:null}
+      <Panel title="Technical details"><dl className="detail-grid"><div><dt>App ID</dt><dd className="font-mono text-sm">{item.appId}</dd></div><div><dt>Stored data state</dt><dd>{item.namespaceStatus}</dd></div></dl></Panel>
+    </div>
+    <ConfirmDialog open={disableOpen} title={`Disable ${item.appName} cloud sync?`} description="New changes will stop synchronizing. Existing cloud data will remain stored and is not deleted." confirmLabel="Disable sync" pending={configure.isPending} onCancel={()=>setDisableOpen(false)} onConfirm={async()=>{await configure.mutateAsync({appId:item.appId,enabled:false});setDisableOpen(false);}}/>
+  </>;
+}
 export function PrivacyPage(){const q=usePrivacySummary();if(q.isLoading)return <Loading/>;return <><PageHeader title="Privacy" description="Export, deletion and Account lifecycle controls."/><Panel title="Lifecycle controls"><dl className="detail-grid"><div><dt>Export</dt><dd>{q.data?.exportAvailable?"Available in mock contract":"Unavailable"}</dd></div><div><dt>App-data deletion</dt><dd>{q.data?.appDeletionAvailable?"Available":"Not connected yet"}</dd></div><div><dt>Account deletion</dt><dd>{q.data?.accountDeletionAvailable?"Available":"Not connected yet"}</dd></div></dl></Panel></>;}
 
 export function SignInPage(){const service=useAccountService();const navigate=useNavigate();const queryClient=useQueryClient();async function signIn(){await service.auth.signIn();await queryClient.invalidateQueries({queryKey:["auth"]});navigate("/",{replace:true});}return <main className="grid min-h-dvh place-items-center bg-[var(--background)] px-4"><div className="w-full max-w-[420px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7 shadow-sm"><h1 className="text-2xl font-semibold">THIEPN Account</h1><p className="mt-2 text-sm text-[var(--muted)]">Sign in to manage your account.</p><button className="primary-button mt-6 w-full" onClick={signIn}>Continue with Google</button><p className="mt-4 text-xs text-[var(--muted)]">Development currently uses MockAccountService. Production will never fall back to mock authentication.</p></div></main>;}

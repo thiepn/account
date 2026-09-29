@@ -12,7 +12,7 @@ This file distinguishes **frontend implemented**, **backend partially existing**
 | P5 Security | IMPLEMENTED MOCK FOUNDATION | Structured security events, activity list/filter/detail routes, Google auth-method status and capability-gated protection UI are implemented behind SecurityService. Real reauth/MFA/passkey integration remains P13/P14. |
 | P6 Devices/Sessions | IMPLEMENTED MOCK FOUNDATION | Devices and logical sessions are distinct models; current-session preservation, device/session detail, remote session revocation, device-wide revocation and sign-out-other-sessions state transitions are implemented behind DeviceService. |
 | P7 Apps/Permissions | IMPLEMENTED MOCK FOUNDATION | Registry metadata, connection state and permission grants are separate models; connected-app list/detail, required-vs-optional access, grant/revoke mutations, limited/error states, unknown-registry fallback, disconnect semantics and app security events are implemented behind AppsService. |
-| P8 Data/Sync UI | NOT YET | Mock summary only. |
+| P8 Data/Sync UI | IMPLEMENTED MOCK FOUNDATION | Per-app namespace inventory, retained disconnected data, canonical sync states/timestamps/issues, sync-client summaries, retry behavior, user-controllable enable/disable semantics and per-app data routes are implemented behind DataService. Sync is explicitly distinct from backup. |
 | P9 Backup/Restore UI | NOT YET | Mock summary only. |
 | P10 Privacy/Lifecycle UI | NOT YET | Capability placeholder only. |
 | P11 Frontend adversarial QA | NOT YET | Planned only. |

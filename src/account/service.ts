@@ -1,4 +1,4 @@
-import type { AccountCapabilities, AccountProfile, AuthState, ConnectedAppDetail, ConnectedAppSummary, DataSummary, DeviceSummary, Overview, SecurityEvent, SecuritySummary, SessionSummary } from "./types";
+import type { AccountCapabilities, AccountProfile, AppCloudDataDetail, AppCloudDataSummary, AuthState, ConnectedAppDetail, ConnectedAppSummary, DataSummary, DeviceSummary, Overview, SecurityEvent, SecuritySummary, SessionSummary } from "./types";
 
 export interface AuthService { getState():Promise<AuthState>; signIn():Promise<void>; signOut():Promise<void>; }
 export interface UpdateProfileInput { displayName:string; preferredLanguage:string; timezone:string; }
@@ -15,7 +15,13 @@ export interface AppsService {
   revokePermission(appId:string,permissionId:string):Promise<ConnectedAppDetail>;
   disconnect(appId:string):Promise<void>;
 }
-export interface DataService { getSummary():Promise<DataSummary>; }
+export interface DataService {
+  getSummary():Promise<DataSummary>;
+  listAppData():Promise<AppCloudDataSummary[]>;
+  getAppData(appId:string):Promise<AppCloudDataDetail|null>;
+  retrySync(appId:string):Promise<AppCloudDataDetail>;
+  updateSyncConfiguration(appId:string,enabled:boolean):Promise<AppCloudDataDetail>;
+}
 export interface PrivacyService { getSummary():Promise<{exportAvailable:boolean;appDeletionAvailable:boolean;accountDeletionAvailable:boolean}>; }
 export interface CapabilityService { getCapabilities():Promise<AccountCapabilities>; }
 
