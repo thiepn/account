@@ -32,7 +32,10 @@ describe("MockAccountService cross-domain invariants",()=>{
   });
   it("does not allow an independently-required permission to be revoked",async()=>{
     const service=serviceFor();
-    await expect(settle(service.apps.revokePermission("tms60","identity.basic"),600)).rejects.toMatchObject({code:"PERMISSION_REQUIRED"});
+    const attempt=service.apps.revokePermission("tms60","identity.basic");
+    const assertion=expect(attempt).rejects.toMatchObject({code:"PERMISSION_REQUIRED"});
+    await vi.advanceTimersByTimeAsync(600);
+    await assertion;
   });
   it("disabling sync preserves live cloud storage",async()=>{
     const service=serviceFor();
