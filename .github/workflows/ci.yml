@@ -19,6 +19,13 @@ jobs:
           node-version: 24
       - run: corepack enable
       - run: pnpm install --no-frozen-lockfile
+      - name: Export generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: account-pnpm-lock
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 1
       - run: pnpm typecheck
       - name: Enforce frontend backend-boundary imports
         run: |
