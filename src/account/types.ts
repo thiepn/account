@@ -77,6 +77,32 @@ export interface RestoreOperation {
   startedAt:string; completedAt?:string|undefined; appResults?:RestoreAppResult[]|undefined; safetyBackupId?:string|undefined;
 }
 
+export interface ExportRequest {
+  id:string; scope:"account"|"selected-apps"; appIds?:string[]|undefined;
+  status:"queued"|"collecting"|"packaging"|"ready"|"expired"|"failed";
+  requestedAt:string; completedAt?:string|undefined; expiresAt?:string|undefined; sizeBytes?:number|undefined;
+}
+export interface AppDataDeletionPlan {
+  id:string; appId:string; appName:string; storageBytes:number; blockers:string[]; warnings:string[];
+  backupImpact:string; requiresReauthentication:boolean; expiresAt:string;
+}
+export interface AppDataDeletionOperation {
+  id:string; appId:string; status:"queued"|"deleting-live-data"|"processing-backups"|"verifying"|"completed"|"partially-completed"|"failed";
+  startedAt:string; completedAt?:string|undefined;
+}
+export interface AccountDeletionPlan {
+  id:string; appCount:number; namespaceCount:number; backupCount:number; blockers:string[]; warnings:string[];
+  gracePeriodDays:number; requiresReauthentication:boolean; expiresAt:string;
+}
+export interface AccountDeletionRequest {
+  id:string; status:"pending"|"cancelling"|"deleting"|"verifying"|"completed"|"failed"|"cancelled";
+  requestedAt:string; cancellableUntil?:string|undefined; scheduledDeletionAt?:string|undefined; completedAt?:string|undefined;
+}
+export interface PrivacySummary {
+  exportCount:number; readyExportCount:number; storedAppCount:number; retainedAppCount:number; accountStatus:AccountStatus;
+  accountDeletion?:AccountDeletionRequest|undefined;
+}
+
 export interface DataSummary { totalStorageBytes:number; appCount:number; syncStatus:"healthy"|"attention"|"unavailable"; attentionCount:number; lastBackupAt?:string|undefined; backupStatus:"verified"|"failed"|"none"; }
 export interface Overview { identity:AccountIdentity; security:SecuritySummary; devices:DeviceSummary[]; apps:ConnectedAppSummary[]; data:DataSummary; }
 export interface AccountCapabilities { profileRead:boolean; profileWrite:boolean; securityRead:boolean; devicesRead:boolean; appsRead:boolean; dataRead:boolean; privacyRead:boolean; }

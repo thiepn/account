@@ -1,4 +1,4 @@
-import type { AccountCapabilities, AccountProfile, AppCloudDataDetail, AppCloudDataSummary, AuthState, BackupOperation, BackupPolicy, BackupSnapshot, BackupSummary, ConnectedAppDetail, ConnectedAppSummary, DataSummary, DeviceSummary, Overview, RestoreOperation, RestorePlan, SecurityEvent, SecuritySummary, SessionSummary } from "./types";
+import type { AccountCapabilities, AccountProfile, AppCloudDataDetail, AppCloudDataSummary, AuthState, AccountDeletionPlan, AccountDeletionRequest, AppDataDeletionOperation, AppDataDeletionPlan, BackupOperation, BackupPolicy, BackupSnapshot, BackupSummary, ConnectedAppDetail, ConnectedAppSummary, DataSummary, DeviceSummary, ExportRequest, Overview, PrivacySummary, RestoreOperation, RestorePlan, SecurityEvent, SecuritySummary, SessionSummary } from "./types";
 
 export interface AuthService { getState():Promise<AuthState>; signIn():Promise<void>; signOut():Promise<void>; }
 export interface UpdateProfileInput { displayName:string; preferredLanguage:string; timezone:string; }
@@ -33,7 +33,19 @@ export interface BackupService {
   startRestore(planId:string):Promise<RestoreOperation>;
   getRestoreOperation(id:string):Promise<RestoreOperation|null>;
 }
-export interface PrivacyService { getSummary():Promise<{exportAvailable:boolean;appDeletionAvailable:boolean;accountDeletionAvailable:boolean}>; }
+export interface PrivacyService {
+  getSummary():Promise<PrivacySummary>;
+  requestExport(appIds?:string[]):Promise<ExportRequest>;
+  listExports():Promise<ExportRequest[]>;
+  getExport(id:string):Promise<ExportRequest|null>;
+  getExportContent(id:string):Promise<string>;
+  planAppDataDeletion(appId:string):Promise<AppDataDeletionPlan>;
+  startAppDataDeletion(planId:string):Promise<AppDataDeletionOperation>;
+  planAccountDeletion():Promise<AccountDeletionPlan>;
+  requestAccountDeletion(planId:string,confirmation:string):Promise<AccountDeletionRequest>;
+  getAccountDeletion():Promise<AccountDeletionRequest|null>;
+  cancelAccountDeletion():Promise<AccountDeletionRequest>;
+}
 export interface CapabilityService { getCapabilities():Promise<AccountCapabilities>; }
 
 export interface AccountService {

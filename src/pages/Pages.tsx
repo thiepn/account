@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useApp, useAppData, useAppDataList, useApps, useBackup, useBackups, useBackupSummary, useCreateBackup, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, usePlanRestore, useProfile, useRestoreOperation, useRetrySync, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useStartRestore, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
+import { useApp, useAppData, useAppDataList, useApps, useBackup, useBackups, useBackupSummary, useCreateBackup, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useAccountDeletion, useCancelAccountDeletion, useExport, useExports, usePlanAccountDeletion, usePlanAppDataDeletion, usePlanRestore, useProfile, useRequestAccountDeletion, useRequestExport, useRestoreOperation, useRetrySync, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useStartAppDataDeletion, useStartRestore, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
 import { useAccountService } from "../account/context";
 import { useTheme } from "../app/theme";
 import { Panel } from "../components/ui/Panel";
@@ -334,7 +334,68 @@ export function RestoreOperationPage(){
   </>;
 }
 
-export function PrivacyPage(){const q=usePrivacySummary();if(q.isLoading)return <Loading/>;return <><PageHeader title="Privacy" description="Export, deletion and Account lifecycle controls."/><Panel title="Lifecycle controls"><dl className="detail-grid"><div><dt>Export</dt><dd>{q.data?.exportAvailable?"Available in mock contract":"Unavailable"}</dd></div><div><dt>App-data deletion</dt><dd>{q.data?.appDeletionAvailable?"Available":"Not connected yet"}</dd></div><div><dt>Account deletion</dt><dd>{q.data?.accountDeletionAvailable?"Available":"Not connected yet"}</dd></div></dl></Panel></>;}
+export function PrivacyPage(){
+  const q=usePrivacySummary();
+  if(q.isLoading)return <Loading/>;
+  if(!q.data)return <div>Could not load privacy status.</div>;
+  return <><PageHeader title="Privacy" description="Export, cloud-data deletion and Account lifecycle controls."/>
+    {q.data.accountStatus==="deletion-pending"?<Notice tone="warning">Account deletion is scheduled. Review or cancel it from the deletion status page.</Notice>:null}
+    <div className="mt-4 space-y-4">
+      <Panel title="Data export" description={`${q.data.readyExportCount} export${q.data.readyExportCount===1?"":"s"} ready to download`}><Link className="inline-link" to="/privacy/export">Manage exports</Link></Panel>
+      <Panel title="Stored app data" description={`${q.data.storedAppCount} app namespace${q.data.storedAppCount===1?"":"s"} stored`}><p className="text-sm text-[var(--muted)]">Delete individual cloud-data namespaces without disconnecting the app.</p><Link className="inline-link" to="/data">Review stored data</Link></Panel>
+      <Panel title="Delete THIEPN Account" description="Schedule deletion of the entire Account and its managed data lifecycle."><Link className="ui-button ui-button-danger no-underline" to={q.data.accountStatus==="deletion-pending"?"/account/deletion/status":"/account/deletion"}>{q.data.accountStatus==="deletion-pending"?"View deletion status":"Delete Account"}</Link></Panel>
+    </div>
+  </>;
+}
+
+export function ExportPage(){
+  const exports=useExports();const request=useRequestExport();const service=useAccountService();
+  if(exports.isLoading)return <Loading/>;
+  async function download(id:string){
+    const content=await service.privacy.getExportContent(id);
+    const url=URL.createObjectURL(new Blob([content],{type:"application/json"}));
+    const anchor=document.createElement("a");anchor.href=url;anchor.download=`thiepn-account-${id}.json`;anchor.click();URL.revokeObjectURL(url);
+  }
+  return <><PageHeader title="Data export" description="Create a portable copy of your THIEPN Account and supported app metadata."/>
+    <div className="space-y-4">
+      <Panel title="Request export" description="Exports are temporary portable artifacts, not backups."><Button disabled={request.isPending||exports.data?.some((item)=>["queued","collecting","packaging"].includes(item.status))} onClick={()=>void request.mutateAsync(undefined)}>{request.isPending?"Requesting…":"Request Account export"}</Button></Panel>
+      <Panel title="Export history">{exports.data?.length?<div className="data-list">{exports.data.map((item)=><div className="data-row" key={item.id}><span><strong>Account export</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.requestedAt))}{item.expiresAt?` · expires ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.expiresAt))}`:""}</small></span>{item.status==="ready"?<Button variant="secondary" onClick={()=>void download(item.id)}>Download</Button>:<StatusBadge tone={item.status==="failed"||item.status==="expired"?"danger":"warning"}>{item.status}</StatusBadge>}</div>)}</div>:<EmptyState title="No exports" description="Requested portable exports will appear here."/ >}</Panel>
+    </div>
+  </>;
+}
+
+export function AppPrivacyPage(){
+  const {appId}=useParams();const data=useAppData(appId);const planMutation=usePlanAppDataDeletion();const start=useStartAppDataDeletion();const navigate=useNavigate();
+  const [confirmOpen,setConfirmOpen]=useState(false);
+  if(data.isLoading)return <Loading/>;
+  if(!data.data)return <><PageHeader title="No cloud data" description="This app currently has no stored cloud-data namespace."/><Link className="inline-link" to="/privacy">Back to Privacy</Link></>;
+  const item=data.data;const plan=planMutation.data;
+  return <><PageHeader title={`${item.appName} data`} description="Manage this app's cloud-data lifecycle separately from its Account connection."/>
+    <div className="space-y-4">
+      <Panel title="Stored cloud data"><dl className="detail-grid"><div><dt>Storage</dt><dd>{new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:2}).format(item.storageBytes/1_000_000)}</dd></div><div><dt>Connection</dt><dd>Deleting cloud data does not disconnect the app.</dd></div></dl></Panel>
+      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>void planMutation.mutateAsync(item.appId)}>{planMutation.isPending?"Preparing deletion…":"Plan cloud-data deletion"}</Button>:<Panel title="Deletion review">{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<p className="text-sm text-[var(--muted)]">{plan.backupImpact}</p><Button variant="danger" disabled={Boolean(plan.blockers.length)} onClick={()=>setConfirmOpen(true)}>Delete {plan.appName} cloud data</Button></Panel>}
+    </div>
+    <ConfirmDialog open={confirmOpen} title={`Delete ${plan?.appName??item.appName} cloud data?`} description="Live cloud data will be removed. Local data on devices is not erased, the app remains connected, and backup handling follows the stated retention policy." confirmLabel="Delete cloud data" danger pending={start.isPending} onCancel={()=>setConfirmOpen(false)} onConfirm={async()=>{if(!plan)return;await start.mutateAsync(plan.id);setConfirmOpen(false);navigate("/privacy",{replace:true});}}/>
+  </>;
+}
+
+export function AccountDeletionPage(){
+  const planMutation=usePlanAccountDeletion();const request=useRequestAccountDeletion();const navigate=useNavigate();const [confirmation,setConfirmation]=useState("");
+  const plan=planMutation.data;
+  return <><PageHeader title="Delete THIEPN Account" description="Schedule deletion of your Account and managed cloud data."/>
+    <div className="space-y-4">
+      <Notice tone="warning">This is a mock lifecycle workflow. The existing production immediate-delete RPC is intentionally not exposed here.</Notice>
+      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>void planMutation.mutateAsync()}>{planMutation.isPending?"Preparing…":"Review Account deletion"}</Button>:<Panel title="Deletion review"><dl className="detail-grid"><div><dt>Connected apps</dt><dd>{plan.appCount}</dd></div><div><dt>Stored app namespaces</dt><dd>{plan.namespaceCount}</dd></div><div><dt>Backups</dt><dd>{plan.backupCount}</dd></div><div><dt>Grace period</dt><dd>{plan.gracePeriodDays} days</dd></div></dl>{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<div className="field mt-4"><label htmlFor="delete-confirmation">Type DELETE to schedule deletion</label><input id="delete-confirmation" value={confirmation} onChange={(event)=>setConfirmation(event.target.value)} autoComplete="off"/></div><Button className="mt-4" variant="danger" disabled={confirmation!=="DELETE"||request.isPending||Boolean(plan.blockers.length)} onClick={async()=>{const result=await request.mutateAsync({planId:plan.id,confirmation});navigate("/account/deletion/status",{replace:true,state:{id:result.id}});}}>{request.isPending?"Scheduling…":"Schedule Account deletion"}</Button></Panel>}
+    </div>
+  </>;
+}
+
+export function AccountDeletionStatusPage(){
+  const q=useAccountDeletion();const cancel=useCancelAccountDeletion();
+  if(q.isLoading)return <Loading/>;
+  if(!q.data)return <><PageHeader title="No Account deletion scheduled" description="Your THIEPN Account is active."/><Link className="inline-link" to="/privacy">Back to Privacy</Link></>;
+  const item=q.data;return <><PageHeader title="Account deletion status" description="Lifecycle timing is authoritative on the Account service."/><Panel title={item.status==="pending"?"Account deletion scheduled":"Account deletion"}><dl className="detail-grid"><div><dt>Status</dt><dd>{item.status}</dd></div>{item.scheduledDeletionAt?<div><dt>Scheduled deletion</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(item.scheduledDeletionAt))}</dd></div>:null}{item.cancellableUntil?<div><dt>Cancellation available until</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(item.cancellableUntil))}</dd></div>:null}</dl>{item.status==="pending"?<Button className="mt-4" disabled={cancel.isPending} onClick={()=>void cancel.mutateAsync()}>{cancel.isPending?"Cancelling…":"Cancel Account deletion"}</Button>:null}</Panel></>;
+}
 
 export function SignInPage(){const service=useAccountService();const navigate=useNavigate();const queryClient=useQueryClient();async function signIn(){await service.auth.signIn();await queryClient.invalidateQueries({queryKey:["auth"]});navigate("/",{replace:true});}return <main className="grid min-h-dvh place-items-center bg-[var(--background)] px-4"><div className="w-full max-w-[420px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7 shadow-sm"><h1 className="text-2xl font-semibold">THIEPN Account</h1><p className="mt-2 text-sm text-[var(--muted)]">Sign in to manage your account.</p><button className="primary-button mt-6 w-full" onClick={signIn}>Continue with Google</button><p className="mt-4 text-xs text-[var(--muted)]">Development currently uses MockAccountService. Production will never fall back to mock authentication.</p></div></main>;}
 export function NotFoundPage(){return <><PageHeader title="Page not found" description="This Account page does not exist."/><a className="text-sm font-medium underline" href="/">Return to Overview</a></>;}

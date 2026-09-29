@@ -51,3 +51,5 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--f
 @media(max-width:520px){.permission-row{align-items:flex-start;flex-direction:column}.permission-actions{width:100%;justify-content:space-between}}
 
 .check-row{display:flex;min-height:60px;align-items:flex-start;gap:12px;border-bottom:1px solid var(--border);padding:12px 0;cursor:pointer}.check-row:last-child{border-bottom:0}.check-row input{width:18px;height:18px;margin-top:2px}.check-row span{display:grid;gap:3px}.check-row strong{font-size:14px}.check-row small{color:var(--muted);font-size:12px}.restore-status{display:flex;align-items:center;gap:12px;margin-bottom:16px}.restore-status p{margin:0;color:var(--muted);font-size:14px}
+
+.mt-4{margin-top:1rem}
