@@ -18,7 +18,7 @@ test("mobile keeps one compact header and accessible navigation drawer",async({p
   await page.getByRole("button",{name:"Open navigation"}).click();
   await expect(page.getByRole("dialog",{name:"Account navigation"})).toBeVisible();
   await page.getByRole("link",{name:"Profile"}).click();
-  await expect(page.getByRole("heading",{name:"Profile"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Profile",exact:true})).toBeVisible();
   await expect(page.getByRole("dialog",{name:"Account navigation"})).toHaveCount(0);
 });
 
