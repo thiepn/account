@@ -16,11 +16,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  preflight:
     if: >
       (github.event_name == 'workflow_dispatch') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.pages.outputs.ready }}
+    steps:
+      - name: Check Pages production configuration
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          code="$(curl -sS -o /tmp/pages.json -w '%{http_code}' \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages")"
+          if [ "$code" != "200" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "GitHub Pages is not enabled for this repository yet."
+            exit 0
+          fi
+          cname="$(python -c 'import json; print((json.load(open("/tmp/pages.json")).get("cname") or ""))')"
+          build_type="$(python -c 'import json; print((json.load(open("/tmp/pages.json")).get("build_type") or ""))')"
+          if [ "$cname" = "account.thiepn.dev" ] && [ "$build_type" = "workflow" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Pages exists but production is not ready: build_type=$build_type cname=$cname"
+          fi
+
+  build:
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -66,10 +98,6 @@ jobs:
           path: dist
 
   deploy:
-    if: >
-      (github.event_name == 'workflow_dispatch') ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
