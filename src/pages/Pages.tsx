@@ -11,10 +11,10 @@ import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { EmptyState } from "../components/ui/EmptyState";
 import { StatusBadge } from "../components/ui/StatusBadge";
+import { Notice } from "../components/ui/Notice";
 
 function PageHeader({title,description}:{title:string;description:string}){return <header className="mb-7"><h1 className="text-[28px] font-semibold leading-9 tracking-[-0.02em]">{title}</h1><p className="mt-2 max-w-2xl text-[15px] leading-6 text-[var(--muted)]">{description}</p></header>;}
 function Loading(){return <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">Loading…</div>;}
-function Notice({children,tone="info"}:{children:React.ReactNode;tone?:"info"|"error"|"success"}){return <div className={`notice notice-${tone}`} role={tone==="error"?"alert":"status"}>{children}</div>;}
 
 export function OverviewPage(){const q=useOverview();if(q.isLoading)return <Loading/>;if(!q.data)return <div>Could not load the account overview.</div>;const {identity,security,devices,apps,data}=q.data;return <>
   <PageHeader title="Overview" description="Your THIEPN Account, access and data at a glance."/>
