@@ -215,5 +215,29 @@ jobs:
           }
 
           console.log("Production Account rendered successfully:", bodyText.slice(0,500));
+
+          if (await signIn.isVisible().catch(()=>false)) {
+            const requestPromise = page.waitForRequest(request =>
+              request.url().includes("hycegznamzjhwinegaai.supabase.co/auth/v1/authorize"),
+              {timeout:10000},
+            );
+
+            await signIn.click();
+            const authorizeRequest = await requestPromise;
+            const authorizeUrl = authorizeRequest.url();
+            const parsed = new URL(authorizeUrl);
+
+            if (parsed.searchParams.get("provider") !== "google") {
+              throw new Error("Production OAuth did not request the Google provider");
+            }
+
+            const redirectTo = parsed.searchParams.get("redirect_to");
+            if (redirectTo !== "https://account.thiepn.dev/auth/callback") {
+              throw new Error(`Production OAuth redirect mismatch: ${redirectTo}`);
+            }
+
+            console.log("Production Google OAuth initiation verified:", authorizeUrl);
+          }
+
           await browser.close();
           NODE

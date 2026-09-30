@@ -85,3 +85,12 @@ Until then the accurate status is **v1.0.0-rc.2**.
 On 2026-09-30, the operator reported the one-time Pages, custom-domain/DNS, and production OAuth configuration steps completed.
 
 This commit intentionally triggers the full Account CI → production artifact → Pages preflight → deploy → live `release.json` SHA verification chain. The production configuration is not considered certified until that workflow succeeds against `account.thiepn.dev`.
+
+
+## Live Google OAuth initiation
+
+The production post-deploy browser smoke verifies that `Continue with Google` initiates the real Supabase Google OAuth flow and carries the exact canonical callback:
+
+`https://account.thiepn.dev/auth/callback`
+
+This deliberately stops before entering Google credentials. Completing the identity-provider flow remains a manual P20 certification step.
