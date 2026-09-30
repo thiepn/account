@@ -13,22 +13,56 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Notice } from "../components/ui/Notice";
 import { useSensitiveAction } from "../account/useSensitiveAction";
+import { ArrowUpRight, Boxes, CloudCog, Laptop2, ShieldCheck } from "lucide-react";
 
-function PageHeader({title,description}:{title:string;description:string}){return <header className="mb-7"><h1 className="text-[28px] font-semibold leading-9 tracking-[-0.02em]">{title}</h1><p className="mt-2 max-w-2xl text-[15px] leading-6 text-[var(--muted)]">{description}</p></header>;}
-function Loading(){return <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">Loading…</div>;}
+function PageHeader({title,description}:{title:string;description:string}){return <header className="page-header"><div className="page-kicker">Account center</div><h1>{title}</h1><p>{description}</p></header>;}
+function Loading(){return <div className="loading-card" aria-label="Loading"><div className="loading-shimmer"/></div>;}
 
-export function OverviewPage(){const q=useOverview();if(q.isLoading)return <Loading/>;if(!q.data)return <div>Could not load the account overview.</div>;const {identity,security,devices,apps,data}=q.data;const sessionCount=devices.reduce((sum,device)=>sum+device.sessions.length,0);return <>
-  <PageHeader title="Overview" description="Your THIEPN Account, access and data at a glance."/>
-  {identity.status==="deletion-pending"?<div className="mb-5 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm">Account deletion is pending in this mock scenario. Real lifecycle integration is not enabled yet.</div>:null}
-  {security.attention.length?<div className="mb-5 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm">{security.attention[0]}</div>:null}
-  <div className="grid gap-4 lg:grid-cols-2">
-    <Panel title={identity.displayName} description={identity.primaryEmail}><dl className="detail-grid"><div><dt>Provider</dt><dd>Google</dd></div><div><dt>Status</dt><dd>{identity.status}</dd></div></dl></Panel>
-    <Panel title="Security" description={!q.data.capabilities.securityRead?"Security integration unavailable.":security.attention.length?"Needs attention":"No security issues need your attention."}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.securityRead?`Sign-in method: ${security.authMethod}`:"This backend does not expose the Security domain yet."}</p></Panel>
-    <Panel title="Sessions" description={!q.data.capabilities.devicesRead?"Session integration unavailable.":`${sessionCount} signed-in session${sessionCount===1?"":"s"}`}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.devicesRead?(devices.find((d)=>d.current)?.label??"Current session unavailable"):"This backend does not expose Account sessions yet."}</p></Panel>
-    <Panel title="Apps" description={!q.data.capabilities.appsRead?"Connected-app integration unavailable.":`${apps.length} connected app${apps.length===1?"":"s"}`}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.appsRead?(apps.slice(0,3).map((a)=>a.name).join(", ")||"No connected apps yet."):"This backend does not expose Account app connections yet."}</p></Panel>
-    <Panel title="Data & Backup" description={!q.data.capabilities.dataRead?"Cloud-data integration unavailable.":data.syncStatus==="healthy"?"No known sync issues.":"Sync needs attention."}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.dataRead?`Backup: ${data.backupStatus}`:"This backend does not expose the Data domain yet."}</p></Panel>
-  </div></>;}
+export function OverviewPage(){
+  const q=useOverview();
+  if(q.isLoading)return <Loading/>;
+  if(!q.data)return <div>Could not load the account overview.</div>;
+  const {identity,security,devices,apps,data}=q.data;
+  const sessionCount=devices.reduce((sum,device)=>sum+device.sessions.length,0);
+  const initial=identity.displayName.trim().charAt(0).toUpperCase()||"T";
+  const securityValue=!q.data.capabilities.securityRead?"Unavailable":security.attention.length?"Review":"Protected";
+  const backupValue=!q.data.capabilities.dataRead?"Unavailable":data.backupStatus==="verified"?"Verified":data.backupStatus==="failed"?"Needs attention":"Not configured";
 
+  return <>
+    <PageHeader title="Overview" description="Your identity, security, connected apps and cloud data in one place."/>
+    {identity.status==="deletion-pending"?<Notice tone="warning">Account deletion is pending. Account-changing actions are restricted until the lifecycle completes or is cancelled.</Notice>:null}
+    {security.attention.length?<div className="mt-4"><Notice tone="warning">{security.attention[0]}</Notice></div>:null}
+
+    <div className="overview-hero mt-4">
+      <div className="overview-avatar" aria-hidden="true">{initial}</div>
+      <div className="overview-identity">
+        <span className="page-kicker">THIEPN Account</span>
+        <h2>{identity.displayName}</h2>
+        <p>{identity.primaryEmail}</p>
+      </div>
+      <div className="overview-hero-status"><StatusBadge tone={identity.status==="active"?"success":"warning"}>{identity.status}</StatusBadge></div>
+    </div>
+
+    <div className="overview-grid">
+      <Link className="overview-stat" to="/security">
+        <div className="overview-stat-top"><span className="overview-stat-icon"><ShieldCheck size={18}/></span><ArrowUpRight className="overview-stat-arrow" size={16}/></div>
+        <div><strong>{securityValue}</strong><small>Security status</small></div>
+      </Link>
+      <Link className="overview-stat" to="/security#sessions">
+        <div className="overview-stat-top"><span className="overview-stat-icon"><Laptop2 size={18}/></span><ArrowUpRight className="overview-stat-arrow" size={16}/></div>
+        <div><strong>{q.data.capabilities.devicesRead?sessionCount:"—"}</strong><small>Active session{sessionCount===1?"":"s"}</small></div>
+      </Link>
+      <Link className="overview-stat" to="/apps">
+        <div className="overview-stat-top"><span className="overview-stat-icon"><Boxes size={18}/></span><ArrowUpRight className="overview-stat-arrow" size={16}/></div>
+        <div><strong>{q.data.capabilities.appsRead?apps.length:"—"}</strong><small>Connected app{apps.length===1?"":"s"}</small></div>
+      </Link>
+      <Link className="overview-stat" to="/data">
+        <div className="overview-stat-top"><span className="overview-stat-icon"><CloudCog size={18}/></span><ArrowUpRight className="overview-stat-arrow" size={16}/></div>
+        <div><strong>{backupValue}</strong><small>Backup status</small></div>
+      </Link>
+    </div>
+  </>;
+}
 const profileSchema=z.object({
   displayName:z.string().trim().min(1,"Enter a display name.").max(80,"Display name must be 80 characters or fewer.").refine((value)=>!/[\u0000-\u001F\u007F]/u.test(value),"Display name contains unsupported control characters."),
   preferredLanguage:z.string().min(2).max(16),
@@ -404,15 +438,22 @@ export function SignInPage(){
   const service=useAccountService();const navigate=useNavigate();const queryClient=useQueryClient();const location=useLocation();const [error,setError]=useState(false);
   const returnTo=(location.state as {returnTo?:string}|null)?.returnTo??"/";
   async function signIn(){setError(false);try{const result=await service.auth.signIn(returnTo);if(!result.redirecting){await queryClient.invalidateQueries({queryKey:["auth"]});navigate(returnTo,{replace:true});}}catch{setError(true);}}
-  return <main className="grid min-h-dvh place-items-center bg-[var(--background)] px-4"><div className="w-full max-w-[420px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7 shadow-sm"><h1 className="text-2xl font-semibold">THIEPN Account</h1><p className="mt-2 text-sm text-[var(--muted)]">Sign in to manage your account.</p>{error?<Notice tone="error">Couldn’t start sign-in. Check the Account backend configuration and try again.</Notice>:null}<button className="primary-button mt-6 w-full" onClick={signIn}>Continue with Google</button>{import.meta.env.DEV?<p className="mt-4 text-xs text-[var(--muted)]">Development defaults to MockAccountService unless VITE_ACCOUNT_SERVICE_MODE=real.</p>:null}</div></main>;
+  return <main className="auth-screen"><section className="auth-card">
+    <div className="auth-brand-mark" aria-hidden="true">T</div>
+    <span className="auth-eyebrow">THIEPN</span>
+    <h1>Account</h1>
+    <p>One place for your identity, security, connected apps and cloud data.</p>
+    {error?<div className="mt-4"><Notice tone="error">Couldn’t start sign-in. Check the Account backend configuration and try again.</Notice></div>:null}
+    <button className="primary-button auth-button" onClick={signIn}><span className="auth-google-mark" aria-hidden="true">G</span>Continue with Google</button>
+    {import.meta.env.DEV?<p className="mt-4 text-xs text-[var(--muted)]">Development defaults to MockAccountService unless VITE_ACCOUNT_SERVICE_MODE=real.</p>:null}
+  </section></main>;
 }
-
 export function AuthCallbackPage(){
   const service=useAccountService();const navigate=useNavigate();const queryClient=useQueryClient();const [failed,setFailed]=useState(false);
   useEffect(()=>{let active=true;(async()=>{try{const returnTo=await service.auth.completeCallback();if(!active)return;await queryClient.invalidateQueries({queryKey:["auth"]});navigate(returnTo,{replace:true});}catch{if(active)setFailed(true);}})();return()=>{active=false;};},[service,navigate,queryClient]);
-  if(failed)return <main className="grid min-h-dvh place-items-center bg-[var(--background)] px-4"><div className="w-full max-w-[420px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7"><h1 className="text-xl font-semibold">Sign-in couldn’t be completed.</h1><p className="mt-2 text-sm text-[var(--muted)]">The OAuth callback could not establish a THIEPN Account session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></div></main>;
-  return <main className="grid min-h-dvh place-items-center bg-[var(--background)] text-sm text-[var(--muted)]">Signing you in…</main>;
+  if(failed)return <main className="auth-screen"><section className="auth-card"><div className="auth-brand-mark" aria-hidden="true">T</div><span className="auth-eyebrow">THIEPN Account</span><h1>Sign-in couldn’t be completed.</h1><p>The OAuth callback could not establish your Account session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></section></main>;
+  return <main className="auth-screen"><section className="auth-card"><div className="auth-brand-mark" aria-hidden="true">T</div><span className="auth-eyebrow">THIEPN Account</span><h1>Signing you in…</h1><p>Verifying your secure Account session.</p></section></main>;
 }
 
-export function AuthErrorPage(){return <main className="grid min-h-dvh place-items-center bg-[var(--background)] px-4"><div className="w-full max-w-[420px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-7"><h1 className="text-xl font-semibold">Sign-in error</h1><p className="mt-2 text-sm text-[var(--muted)]">THIEPN Account could not establish your session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></div></main>;}
+export function AuthErrorPage(){return <main className="auth-screen"><section className="auth-card"><div className="auth-brand-mark" aria-hidden="true">T</div><span className="auth-eyebrow">THIEPN Account</span><h1>Sign-in error</h1><p>THIEPN Account could not establish your session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></section></main>;}
 export function NotFoundPage(){return <><PageHeader title="Page not found" description="This Account page does not exist."/><a className="text-sm font-medium underline" href="/">Return to Overview</a></>;}

@@ -7,12 +7,19 @@ import { usePrivacySummary } from "../../account/hooks";
 import { accountRoutes, routeTitle } from "../../app/routes";
 import { useTheme } from "../../app/theme";
 
+function Brand({compact=false}:{compact?:boolean}){
+  return <div className={compact?"mobile-brand":"account-brand"}>
+    <div className="account-brand-mark" aria-hidden="true">T</div>
+    <div className="account-brand-copy"><strong>THIEPN Account</strong>{!compact?<span>Account center</span>:null}</div>
+  </div>;
+}
+
 function Navigation({onNavigate}:{onNavigate?:()=>void}){
-  return <nav aria-label="Account"><ul className="space-y-1">{accountRoutes.map((route)=>{
+  return <nav aria-label="Account" className="account-nav-wrap"><ul className="account-nav-list">{accountRoutes.map((route)=>{
     const Icon=route.icon;
     return <li key={route.path}><NavLink to={route.path} end={route.path==="/"} onClick={onNavigate}
-      className={({isActive})=>["flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition",isActive?"bg-[var(--accent-soft)] text-[var(--foreground)]":"text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"].join(" ")}>
-      <Icon size={18} aria-hidden="true"/><span>{route.label}</span></NavLink></li>;
+      className={({isActive})=>["account-nav-link",isActive?"account-nav-link-active":""].filter(Boolean).join(" ")}>
+      <span className="account-nav-icon"><Icon size={17} strokeWidth={1.9} aria-hidden="true"/></span><span>{route.label}</span></NavLink></li>;
   })}</ul></nav>;
 }
 
@@ -21,7 +28,12 @@ export function AccountShell(){
   const menuRef=useRef<HTMLButtonElement>(null);
   const drawerRef=useRef<HTMLDivElement>(null);
   const closeRef=useRef<HTMLButtonElement>(null);
-  const location=useLocation(); const navigate=useNavigate(); const service=useAccountService(); const queryClient=useQueryClient(); const theme=useTheme(); const privacy=usePrivacySummary();
+  const location=useLocation();
+  const navigate=useNavigate();
+  const service=useAccountService();
+  const queryClient=useQueryClient();
+  const theme=useTheme();
+  const privacy=usePrivacySummary();
 
   useEffect(()=>{
     const title=routeTitle(location.pathname);
@@ -51,32 +63,38 @@ export function AccountShell(){
 
   async function signOut(){await service.auth.signOut();queryClient.clear();navigate("/auth/sign-in",{replace:true});}
 
-  return <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
+  return <div className="account-app">
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-[var(--surface)] focus:px-4 focus:py-2">Skip to content</a>
-    <header className="sticky top-0 z-30 flex h-14 items-center border-b border-[var(--border)] bg-[var(--background)]/95 px-3 backdrop-blur md:hidden">
-      <button ref={menuRef} className="icon-button" onClick={()=>setDrawerOpen(true)} aria-label="Open navigation" aria-expanded={drawerOpen}><Menu size={20}/></button>
-      <div className="ml-3 min-w-0 flex-1 truncate font-semibold">THIEPN Account</div>
-      <button className="avatar-button" aria-label="Account menu">J</button>
+
+    <header className="mobile-header">
+      <button ref={menuRef} className="icon-button" onClick={()=>setDrawerOpen(true)} aria-label="Open navigation" aria-expanded={drawerOpen}><Menu size={19}/></button>
+      <Brand compact/>
+      <button className="avatar-button" aria-label="Account menu">T</button>
     </header>
-    {privacy.data?.accountStatus==="deletion-pending"?<div className="border-b border-[var(--warning-border)] bg-[var(--warning-soft)] px-4 py-3 text-sm"><div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-2"><span>Account deletion is scheduled. Account-changing actions are restricted until you cancel it or deletion completes.</span><Link className="font-semibold underline underline-offset-2" to="/account/deletion/status">View deletion status</Link></div></div>:null}
-    <div className="mx-auto flex min-h-dvh max-w-[1240px]">
-      <aside className="hidden w-[232px] shrink-0 border-r border-[var(--border)] px-4 py-6 md:block">
-        <div className="mb-8 px-2 text-lg font-semibold">THIEPN Account</div><Navigation/>
-        <div className="mt-8 border-t border-[var(--border)] pt-4">
-          <button className="nav-secondary" onClick={theme.cycle}>{theme.mode==="dark"?<Moon size={18}/>:<Sun size={18}/>}Theme: {theme.mode}</button>
-          <button className="nav-secondary" onClick={signOut}><LogOut size={18}/>Sign out</button>
+
+    {privacy.data?.accountStatus==="deletion-pending"?<div className="deletion-banner"><div className="deletion-banner-inner"><span>Account deletion is scheduled. Account-changing actions are restricted until you cancel it or deletion completes.</span><Link className="font-semibold underline underline-offset-2" to="/account/deletion/status">View status</Link></div></div>:null}
+
+    <div className="account-layout">
+      <aside className="account-sidebar">
+        <Brand/>
+        <Navigation/>
+        <div className="account-sidebar-footer">
+          <button className="nav-secondary" onClick={theme.cycle}>{theme.mode==="dark"?<Moon size={17}/>:<Sun size={17}/>}<span>Theme · {theme.mode}</span></button>
+          <button className="nav-secondary" onClick={signOut}><LogOut size={17}/><span>Sign out</span></button>
         </div>
       </aside>
-      <main id="main-content" className="min-w-0 flex-1 px-4 py-6 sm:px-6 md:px-8 md:py-8"><div className="mx-auto max-w-[1000px]"><Outlet/></div></main>
+
+      <main id="main-content" className="account-main"><div className="account-content"><Outlet/></div></main>
     </div>
+
     {drawerOpen?<div className="fixed inset-0 z-40 md:hidden">
-      <div className="absolute inset-0 bg-black/45" onMouseDown={()=>setDrawerOpen(false)} aria-hidden="true"/>
-      <div ref={drawerRef} className="relative h-dvh w-[min(320px,85vw)] bg-[var(--surface)] p-4 shadow-2xl" role="dialog" aria-modal="true" aria-label="Account navigation">
-        <div className="mb-5 flex h-11 items-center justify-between"><strong>THIEPN Account</strong><button ref={closeRef} className="icon-button" onClick={()=>setDrawerOpen(false)} aria-label="Close navigation"><X size={20}/></button></div>
+      <div className="drawer-backdrop" onMouseDown={()=>setDrawerOpen(false)} aria-hidden="true"/>
+      <div ref={drawerRef} className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Account navigation">
+        <div className="drawer-brand"><Brand compact/><button ref={closeRef} className="icon-button" onClick={()=>setDrawerOpen(false)} aria-label="Close navigation"><X size={19}/></button></div>
         <Navigation onNavigate={()=>setDrawerOpen(false)}/>
-        <div className="mt-8 border-t border-[var(--border)] pt-4">
-          <button className="nav-secondary" onClick={theme.cycle}><Sun size={18}/>Theme: {theme.mode}</button>
-          <button className="nav-secondary" onClick={signOut}><LogOut size={18}/>Sign out</button>
+        <div className="account-sidebar-footer">
+          <button className="nav-secondary" onClick={theme.cycle}>{theme.mode==="dark"?<Moon size={17}/>:<Sun size={17}/>}<span>Theme · {theme.mode}</span></button>
+          <button className="nav-secondary" onClick={signOut}><LogOut size={17}/><span>Sign out</span></button>
         </div>
       </div>
     </div>:null}

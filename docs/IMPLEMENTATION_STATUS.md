@@ -120,3 +120,21 @@ Current UX:
 - the supported production action remains “Sign out all other sessions”;
 - no UI claims that a browser session is a unique physical device;
 - Security activity links point to the consolidated session section rather than obsolete device-detail routes.
+
+
+## Visual system redesign — 2026-09-30
+
+The Account UI received a full visual redesign without changing domain behavior:
+
+- floating glass-like desktop sidebar with compact product branding;
+- stronger active-navigation treatment and reduced visual noise;
+- softer layered page background with restrained THIEPN indigo accent;
+- modernized light and dark semantic color systems;
+- redesigned panels, shadows, radii, buttons, fields, notices, badges and dialogs;
+- new page-heading hierarchy and loading treatment;
+- new Overview identity hero and four interactive account-health summary cards;
+- redesigned Google sign-in surface;
+- denser list/detail presentation for apps, sessions, data and security activity;
+- improved sticky form actions and small-screen responsive behavior.
+
+The redesign preserves keyboard focus treatment, reduced-motion behavior, compact mobile navigation and all existing AccountService boundaries.
