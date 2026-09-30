@@ -9,8 +9,12 @@ export function AppProviders({children}:{children:ReactNode}){
   const [accountService]=useState(()=>createAccountService());
 
   useEffect(()=>accountService.auth.subscribe((state)=>{
-    if(state==="signed-out")queryClient.clear();
-    else void queryClient.invalidateQueries({queryKey:["auth"]});
+    if(state==="signed-out"){
+      queryClient.removeQueries({
+        predicate:(query)=>query.queryKey[0]!=="auth",
+      });
+    }
+    queryClient.setQueryData(["auth","state"],state);
   }),[accountService,queryClient]);
 
   return <ThemeProvider><QueryClientProvider client={queryClient}><AccountServiceProvider service={accountService}>{children}</AccountServiceProvider></QueryClientProvider></ThemeProvider>;

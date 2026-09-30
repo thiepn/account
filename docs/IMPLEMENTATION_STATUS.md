@@ -56,3 +56,18 @@ The current account-delete RPC deletes `auth.users` directly after confirmation/
 - CI/deployment verification tooling.
 
 Core's README and architecture docs explicitly state that general-purpose Core accounts, SSO/scopes, broad synchronization, encryption and backups are not implemented.
+
+
+## Production auth-bootstrap hotfix — 2026-09-30
+
+Live production browser testing reproduced a startup hang at `Checking your account…`.
+
+Root cause: the Supabase `onAuthStateChange` callback could synchronously trigger React Query cache work/refetches while Supabase still held its internal auth lock. The real auth query then waited indefinitely on `getSession()`.
+
+Fix:
+- defer auth-state listeners to a later macrotask;
+- update the cached auth-state value directly instead of clearing the whole QueryClient;
+- remove only non-auth protected queries on sign-out;
+- bound `getSession()` and authenticated `getUser()` verification to eight seconds so production can never spin forever.
+
+The deployed live-browser smoke test is the release gate for this fix.

@@ -174,6 +174,20 @@ function profileFromRow(row:ProfileRow,userName?:string|null):AccountProfile{
 }
 function unsupported<T>():Promise<T>{return Promise.reject(normalizedError("CAPABILITY_UNAVAILABLE","unsupported",false));}
 
+async function withTimeout<T>(promise:Promise<T>,ms:number,code:string):Promise<T>{
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve,reject)=>{
+        timer=setTimeout(()=>reject(normalizedError(code,"network",true)),ms);
+      }),
+    ]);
+  } finally {
+    if(timer)clearTimeout(timer);
+  }
+}
+
 function describeUserAgent(userAgent:string|null){
   const ua=userAgent??"";
   const platform=/Android/i.test(ua)?"Android":/iPhone|iPad|iPod/i.test(ua)?"iOS":/Windows/i.test(ua)?"Windows":/Macintosh|Mac OS X/i.test(ua)?"macOS":/Linux/i.test(ua)?"Linux":"Unknown platform";
@@ -435,10 +449,18 @@ export function createApiAccountService():AccountService{
   const service:AccountService={
     auth:{
       async getState(){
-        const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
+        const {data:sessionData,error:sessionError}=await withTimeout(
+          supabase.auth.getSession(),
+          8000,
+          "AUTH_SESSION_TIMEOUT",
+        );
         if(sessionError)throw mapError(sessionError,"AUTH_SESSION_READ_FAILED");
         if(!sessionData.session)return "signed-out";
-        const {data,error}=await supabase.auth.getUser();
+        const {data,error}=await withTimeout(
+          supabase.auth.getUser(),
+          8000,
+          "AUTH_VERIFY_TIMEOUT",
+        );
         if(error)throw mapError(error,"AUTH_SESSION_VERIFY_FAILED");
         return data.user?"signed-in":"session-expired";
       },
@@ -497,8 +519,18 @@ export function createApiAccountService():AccountService{
         if(error)throw mapError(error,"SIGN_OUT_FAILED");
       },
       subscribe(listener){
-        const {data}=supabase.auth.onAuthStateChange((_event,session)=>listener(session?"signed-in":"signed-out"));
-        return ()=>data.subscription.unsubscribe();
+        let active=true;
+        const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
+          // Supabase invokes auth callbacks while its internal auth lock can still be held.
+          // Never trigger cache work or another auth call synchronously from this callback.
+          setTimeout(()=>{
+            if(active)listener(session?"signed-in":"signed-out");
+          },0);
+        });
+        return ()=>{
+          active=false;
+          data.subscription.unsubscribe();
+        };
       },
     },
     profile:{
