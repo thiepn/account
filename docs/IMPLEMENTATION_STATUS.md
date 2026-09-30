@@ -88,3 +88,19 @@ Real production evidence now confirms:
 - The corrected backup inventory was replayed under the authenticated role and returned verified recovery rows successfully.
 
 No other Account-origin 4xx/5xx responses were observed in the inspected post-login window.
+
+
+## P20 deletion-plan empty-namespace hardening
+
+Production certification exposed a WTTN planning edge case: when no live WTTN save existed, PL/pgSQL `SELECT ... INTO` replaced the initialized zero-byte value with NULL and violated the deletion-plan table constraint.
+
+Migration `20260930150847_account_app_deletion_plan_empty_namespace_fix` now normalizes missing namespace size to zero.
+
+Verified under the authenticated role inside rolled-back transactions:
+
+- WTTN deletion plan succeeds for an empty live namespace.
+- Full Account deletion plan succeeds and inventories current apps/namespaces/backups.
+- A stale session cannot execute WTTN deletion.
+- A stale session cannot schedule full Account deletion.
+- Neither rejected destructive action creates an operation/request.
+- Metadata export request + owner payload retrieval succeeds using the same two-request semantics as production.
