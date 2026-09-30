@@ -145,3 +145,75 @@ jobs:
           done
           echo "Canonical HTTPS release SHA could not be verified"
           exit 1
+
+
+  live-smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Verify live Account renders
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from "@playwright/test";
+
+          const browser = await chromium.launch({headless:true});
+          const page = await browser.newPage();
+          const pageErrors = [];
+          const consoleErrors = [];
+
+          page.on("pageerror", error => pageErrors.push(String(error)));
+          page.on("console", message => {
+            if (message.type() === "error") consoleErrors.push(message.text());
+          });
+
+          const response = await page.goto("https://account.thiepn.dev/", {
+            waitUntil: "networkidle",
+            timeout: 30000,
+          });
+
+          if (!response || !response.ok()) {
+            throw new Error(`Production HTML request failed: ${response?.status() ?? "no response"}`);
+          }
+
+          await page.waitForSelector("body", {state:"visible"});
+          const bodyText = (await page.locator("body").innerText()).trim();
+
+          if (!bodyText) throw new Error("Production page rendered an empty body");
+
+          const signIn = page.getByRole("button", {name:"Continue with Google"});
+          const overview = page.getByRole("heading", {name:"Overview", exact:true});
+          const unavailable = page.getByRole("heading", {name:"THIEPN Account is temporarily unavailable."});
+
+          const rendered =
+            await signIn.isVisible().catch(()=>false) ||
+            await overview.isVisible().catch(()=>false) ||
+            await unavailable.isVisible().catch(()=>false);
+
+          if (!rendered) {
+            console.log("BODY TEXT:", bodyText.slice(0,2000));
+            throw new Error("Production Account did not render a recognized application state");
+          }
+
+          if (pageErrors.length) {
+            throw new Error("Production page errors:\n" + pageErrors.join("\n"));
+          }
+
+          const relevantConsoleErrors = consoleErrors.filter(line =>
+            !line.includes("favicon") && !line.includes("net::ERR_BLOCKED_BY_CLIENT")
+          );
+          if (relevantConsoleErrors.length) {
+            throw new Error("Production console errors:\n" + relevantConsoleErrors.join("\n"));
+          }
+
+          console.log("Production Account rendered successfully:", bodyText.slice(0,500));
+          await browser.close();
+          NODE
