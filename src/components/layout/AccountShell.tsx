@@ -72,7 +72,7 @@ export function AccountShell(){
       <button className="avatar-button" aria-label="Account menu">T</button>
     </header>
 
-    {privacy.data?.accountStatus==="deletion-pending"?<div className="deletion-banner"><div className="deletion-banner-inner"><span>Account deletion is scheduled. Account-changing actions are restricted until you cancel it or deletion completes.</span><Link className="font-semibold underline underline-offset-2" to="/account/deletion/status">View status</Link></div></div>:null}
+    {privacy.data?.accountStatus==="deletion-pending"?<div className="deletion-banner"><div className="deletion-banner-inner"><span>Account deletion is scheduled. Account-changing actions are restricted until you cancel it or deletion completes.</span><Link className="font-semibold underline underline-offset-2" to="/account/deletion/status">View deletion status</Link></div></div>:null}
 
     <div className="account-layout">
       <aside className="account-sidebar">

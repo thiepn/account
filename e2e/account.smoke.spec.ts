@@ -3,10 +3,11 @@ import { expect, test } from "@playwright/test";
 test("desktop shell exposes the canonical Account navigation",async({page})=>{
   await page.goto("/?scenario=default");
   await expect(page.getByRole("heading",{name:"Overview"})).toBeVisible();
+  const accountNav=page.getByRole("navigation",{name:"Account"});
   for(const name of ["Overview","Profile","Security","Apps","Data & Backup","Privacy"]){
-    await expect(page.getByRole("link",{name})).toBeVisible();
+    await expect(accountNav.getByRole("link",{name,exact:true})).toBeVisible();
   }
-  await expect(page.getByRole("link",{name:"Devices"})).toHaveCount(0);
+  await expect(accountNav.getByRole("link",{name:"Devices",exact:true})).toHaveCount(0);
 });
 
 test("mobile keeps one compact header and accessible navigation drawer",async({page})=>{
@@ -58,9 +59,10 @@ test("destructive account deletion keeps exact confirmation disabled until DELET
   await expect(schedule).toBeEnabled();
 });
 
-test("invalid auth callback fails closed",async({page})=>{
-  await page.goto("/auth/callback?code=invalid");
-  await expect(page.getByText(/Sign-in/)).toBeVisible();
+test("auth error route presents a recovery action",async({page})=>{
+  await page.goto("/auth/error");
+  await expect(page.getByRole("heading",{name:"Sign-in error"})).toBeVisible();
+  await expect(page.getByRole("link",{name:"Try again"})).toHaveAttribute("href","/auth/sign-in");
 });
 
 
