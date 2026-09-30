@@ -428,7 +428,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
 .primary-button,.ui-button-primary{
   border-color:color-mix(in srgb,var(--primary) 85%,#000);
   background:linear-gradient(180deg,color-mix(in srgb,var(--primary) 94%,#fff),var(--primary));
-  color:#fff;
+  color:var(--primary-foreground);
   box-shadow:0 5px 14px color-mix(in srgb,var(--primary) 24%,transparent),inset 0 1px 0 rgba(255,255,255,.22);
 }
 .primary-button:hover:not(:disabled),.ui-button-primary:hover:not(:disabled){background:var(--primary-hover);transform:translateY(-1px)}
