@@ -71,3 +71,20 @@ Fix:
 - bound `getSession()` and authenticated `getUser()` verification to eight seconds so production can never spin forever.
 
 The deployed live-browser smoke test is the release gate for this fix.
+
+
+## P20 live authenticated production verification — 2026-09-30
+
+Real production evidence now confirms:
+
+- Google OAuth authorization initiated from `account.thiepn.dev` with the canonical callback.
+- Google PKCE callback completed successfully.
+- Token exchange completed successfully.
+- Authenticated Account profile reads returned 200.
+- Connected-app registry/manifests/connections/grants reads returned 200.
+- Cloud-data inventory RPC returned 200.
+- The only post-login Account-origin error was `get_thiepn_account_backup_inventory`, traced to an invalid PostgreSQL UNION ORDER BY clause.
+- Migration `20260930150238_account_backup_inventory_order_fix` wraps the union and orders by the projected `created_at` column.
+- The corrected backup inventory was replayed under the authenticated role and returned verified recovery rows successfully.
+
+No other Account-origin 4xx/5xx responses were observed in the inspected post-login window.
