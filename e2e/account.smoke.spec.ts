@@ -3,9 +3,10 @@ import { expect, test } from "@playwright/test";
 test("desktop shell exposes the canonical Account navigation",async({page})=>{
   await page.goto("/?scenario=default");
   await expect(page.getByRole("heading",{name:"Overview"})).toBeVisible();
-  for(const name of ["Overview","Profile","Security","Devices","Apps","Data & Backup","Privacy"]){
+  for(const name of ["Overview","Profile","Security","Apps","Data & Backup","Privacy"]){
     await expect(page.getByRole("link",{name})).toBeVisible();
   }
+  await expect(page.getByRole("link",{name:"Devices"})).toHaveCount(0);
 });
 
 test("mobile keeps one compact header and accessible navigation drawer",async({page})=>{
@@ -60,4 +61,20 @@ test("destructive account deletion keeps exact confirmation disabled until DELET
 test("invalid auth callback fails closed",async({page})=>{
   await page.goto("/auth/callback?code=invalid");
   await expect(page.getByText(/Sign-in/)).toBeVisible();
+});
+
+
+test("Security groups duplicate session environments instead of listing fake devices",async({page})=>{
+  await page.goto("/security?scenario=many-devices");
+  await expect(page.getByRole("heading",{name:"Security",exact:true})).toBeVisible();
+  await expect(page.getByText("Where you're signed in")).toBeVisible();
+  await expect(page.getByText("Firefox on Windows",{exact:true})).toHaveCount(1);
+  await expect(page.getByText("Chrome on Android",{exact:true})).toHaveCount(1);
+  await expect(page.getByText(/5 sessions/)).toHaveCount(2);
+});
+
+test("legacy Devices route redirects into Security sessions",async({page})=>{
+  await page.goto("/devices?scenario=default");
+  await expect(page).toHaveURL(/\/security#sessions$/);
+  await expect(page.getByText("Where you're signed in")).toBeVisible();
 });

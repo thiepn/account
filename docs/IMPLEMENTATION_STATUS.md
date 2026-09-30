@@ -104,3 +104,19 @@ Verified under the authenticated role inside rolled-back transactions:
 - A stale session cannot schedule full Account deletion.
 - Neither rejected destructive action creates an operation/request.
 - Metadata export request + owner payload retrieval succeeds using the same two-request semantics as production.
+
+
+## Security/session UX consolidation — 2026-09-30
+
+The top-level **Devices** product area was removed because the current production backend exposes authenticated browser sessions, not trustworthy physical-device identities.
+
+Current UX:
+
+- primary navigation is Overview / Profile / Security / Apps / Data & Backup / Privacy;
+- `/devices` and legacy device-detail URLs redirect to Security → Where you're signed in;
+- the current session is shown explicitly;
+- non-current sessions are grouped by coarse browser + operating-system environment;
+- repeated Firefox/Windows or Chrome/Android sessions collapse into one row with a session count and latest activity timestamp;
+- the supported production action remains “Sign out all other sessions”;
+- no UI claims that a browser session is a unique physical device;
+- Security activity links point to the consolidated session section rather than obsolete device-detail routes.

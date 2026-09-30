@@ -2,7 +2,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuthState } from "../account/hooks";
 import { AccountShell } from "../components/layout/AccountShell";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
-import { AppDataPage, AppDetailPage, AccountDeletionPage, AccountDeletionStatusPage, AppPrivacyPage, AppsPage, BackupDetailPage, BackupsPage, DataPage, ExportPage, DeviceDetailPage, DevicesPage, NotFoundPage, OverviewPage, PrivacyPage, ProfilePage, RestoreOperationPage, RestorePage, SecurityActivityPage, SecurityEventPage, SecurityPage, SignInPage, AuthCallbackPage, AuthErrorPage } from "../pages/Pages";
+import { AppDataPage, AppDetailPage, AccountDeletionPage, AccountDeletionStatusPage, AppPrivacyPage, AppsPage, BackupDetailPage, BackupsPage, DataPage, ExportPage, NotFoundPage, OverviewPage, PrivacyPage, ProfilePage, RestoreOperationPage, RestorePage, SecurityActivityPage, SecurityEventPage, SecurityPage, SignInPage, AuthCallbackPage, AuthErrorPage } from "../pages/Pages";
 
 function ProtectedAccount(){
   const auth=useAuthState();
@@ -22,8 +22,8 @@ export function App(){return <AppErrorBoundary><Routes>
     <Route path="/security" element={<SecurityPage/>}/>
     <Route path="/security/activity" element={<SecurityActivityPage/>}/>
     <Route path="/security/activity/:eventId" element={<SecurityEventPage/>}/>
-    <Route path="/devices" element={<DevicesPage/>}/>
-    <Route path="/devices/:deviceId" element={<DeviceDetailPage/>}/>
+    <Route path="/devices" element={<Navigate to="/security#sessions" replace/>}/>
+    <Route path="/devices/:deviceId" element={<Navigate to="/security#sessions" replace/>}/>
     <Route path="/apps" element={<AppsPage/>}/>
     <Route path="/apps/:appId" element={<AppDetailPage/>}/>
     <Route path="/data" element={<DataPage/>}/>

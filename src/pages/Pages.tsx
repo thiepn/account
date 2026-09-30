@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useApp, useAppData, useAppDataList, useApps, useBackup, useBackups, useBackupSummary, useCapabilities, useCreateBackup, useDataSummary, useDevice, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useAccountDeletion, useCancelAccountDeletion, useExport, useExports, usePlanAccountDeletion, usePlanAppDataDeletion, usePlanRestore, useProfile, useRequestAccountDeletion, useRequestExport, useRestoreOperation, useRetrySync, useRevokeDevice, useRevokeOtherSessions, useRevokePermission, useRevokeSession, useSecurity, useSecurityActivity, useSecurityEvent, useStartAppDataDeletion, useStartRestore, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
+import { useApp, useAppData, useAppDataList, useApps, useBackup, useBackups, useBackupSummary, useCapabilities, useCreateBackup, useDataSummary, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useAccountDeletion, useCancelAccountDeletion, useExport, useExports, usePlanAccountDeletion, usePlanAppDataDeletion, usePlanRestore, useProfile, useRequestAccountDeletion, useRequestExport, useRestoreOperation, useRetrySync, useRevokeOtherSessions, useRevokePermission, useSecurity, useSecurityActivity, useSecurityEvent, useStartAppDataDeletion, useStartRestore, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
 import { useAccountService } from "../account/context";
 import { useTheme } from "../app/theme";
 import { Panel } from "../components/ui/Panel";
@@ -17,14 +17,14 @@ import { useSensitiveAction } from "../account/useSensitiveAction";
 function PageHeader({title,description}:{title:string;description:string}){return <header className="mb-7"><h1 className="text-[28px] font-semibold leading-9 tracking-[-0.02em]">{title}</h1><p className="mt-2 max-w-2xl text-[15px] leading-6 text-[var(--muted)]">{description}</p></header>;}
 function Loading(){return <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm text-[var(--muted)]">Loading…</div>;}
 
-export function OverviewPage(){const q=useOverview();if(q.isLoading)return <Loading/>;if(!q.data)return <div>Could not load the account overview.</div>;const {identity,security,devices,apps,data}=q.data;return <>
+export function OverviewPage(){const q=useOverview();if(q.isLoading)return <Loading/>;if(!q.data)return <div>Could not load the account overview.</div>;const {identity,security,devices,apps,data}=q.data;const sessionCount=devices.reduce((sum,device)=>sum+device.sessions.length,0);return <>
   <PageHeader title="Overview" description="Your THIEPN Account, access and data at a glance."/>
   {identity.status==="deletion-pending"?<div className="mb-5 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm">Account deletion is pending in this mock scenario. Real lifecycle integration is not enabled yet.</div>:null}
   {security.attention.length?<div className="mb-5 rounded-xl border border-[var(--warning-border)] bg-[var(--warning-soft)] p-4 text-sm">{security.attention[0]}</div>:null}
   <div className="grid gap-4 lg:grid-cols-2">
     <Panel title={identity.displayName} description={identity.primaryEmail}><dl className="detail-grid"><div><dt>Provider</dt><dd>Google</dd></div><div><dt>Status</dt><dd>{identity.status}</dd></div></dl></Panel>
     <Panel title="Security" description={!q.data.capabilities.securityRead?"Security integration unavailable.":security.attention.length?"Needs attention":"No security issues need your attention."}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.securityRead?`Sign-in method: ${security.authMethod}`:"This backend does not expose the Security domain yet."}</p></Panel>
-    <Panel title="Devices" description={!q.data.capabilities.devicesRead?"Device integration unavailable.":`${devices.length} signed-in device${devices.length===1?"":"s"}`}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.devicesRead?(devices.find((d)=>d.current)?.label??"Current device unavailable"):"This backend does not expose the Devices domain yet."}</p></Panel>
+    <Panel title="Sessions" description={!q.data.capabilities.devicesRead?"Session integration unavailable.":`${sessionCount} signed-in session${sessionCount===1?"":"s"}`}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.devicesRead?(devices.find((d)=>d.current)?.label??"Current session unavailable"):"This backend does not expose Account sessions yet."}</p></Panel>
     <Panel title="Apps" description={!q.data.capabilities.appsRead?"Connected-app integration unavailable.":`${apps.length} connected app${apps.length===1?"":"s"}`}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.appsRead?(apps.slice(0,3).map((a)=>a.name).join(", ")||"No connected apps yet."):"This backend does not expose Account app connections yet."}</p></Panel>
     <Panel title="Data & Backup" description={!q.data.capabilities.dataRead?"Cloud-data integration unavailable.":data.syncStatus==="healthy"?"No known sync issues.":"Sync needs attention."}><p className="text-sm text-[var(--muted)]">{q.data.capabilities.dataRead?`Backup: ${data.backupStatus}`:"This backend does not expose the Data domain yet."}</p></Panel>
   </div></>;}
@@ -146,12 +146,42 @@ export function ProfilePage(){
 export function SecurityPage(){
   const q=useSecurity();
   const capabilities=useCapabilities();
-  if(q.isLoading||capabilities.isLoading)return <Loading/>;
+  const sessions=useDevices();
+  const revokeOthers=useRevokeOtherSessions();
+  if(q.isLoading||capabilities.isLoading||sessions.isLoading)return <Loading/>;
   if(!q.data)return <div>Could not load security status.</div>;
-  return <><PageHeader title="Security" description="Sign-in methods, protection and recent account activity."/><div className="space-y-4">
+
+  const environments=sessions.data??[];
+  const current=environments.find((environment)=>environment.current);
+  const others=environments.filter((environment)=>!environment.current);
+  const grouped=Array.from(others.reduce((groups,environment)=>{
+    const key=`${environment.label}\u0000${environment.platform}`;
+    const existing=groups.get(key);
+    const count=environment.sessions.length||1;
+    if(existing){
+      existing.sessionCount+=count;
+      if(new Date(environment.lastActivityAt).getTime()>new Date(existing.lastActivityAt).getTime())existing.lastActivityAt=environment.lastActivityAt;
+    }else{
+      groups.set(key,{label:environment.label,platform:environment.platform,sessionCount:count,lastActivityAt:environment.lastActivityAt});
+    }
+    return groups;
+  },new Map<string,{label:string;platform:string;sessionCount:number;lastActivityAt:string}>()).values())
+    .sort((a,b)=>new Date(b.lastActivityAt).getTime()-new Date(a.lastActivityAt).getTime());
+
+  const otherSessionCount=grouped.reduce((sum,group)=>sum+group.sessionCount,0);
+  const canRevokeOthers=capabilities.data?.sessionRevocation==="individual"||capabilities.data?.sessionRevocation==="others-only";
+
+  return <><PageHeader title="Security" description="Sign-in, protection and active Account sessions."/><div className="space-y-4">
     {q.data.attention.length?<Notice tone="warning">{q.data.attention[0]}</Notice>:null}
     <Panel title="Sign-in method"><div className="flex items-center justify-between gap-4"><p className="text-sm">{q.data.authMethod}</p><StatusBadge tone="success">Connected</StatusBadge></div></Panel>
     <Panel title="Additional protection"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-medium">Two-step verification</p><p className="mt-1 text-sm text-[var(--muted)]">Status is read from your THIEPN Account authentication factors.</p></div><StatusBadge tone={q.data.twoStepVerification==="enabled"?"success":"neutral"}>{q.data.twoStepVerification}</StatusBadge></div></Panel>
+    <Panel title="Where you're signed in" description="Browser sessions are grouped by browser and operating system." >
+      <div id="sessions" className="space-y-4 scroll-mt-20">
+        {current?<div className="rounded-xl border border-[var(--border)] bg-[var(--surface-hover)] p-4"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-semibold">{current.label}</p><p className="mt-1 text-xs text-[var(--muted)]">Current session · active now</p></div><StatusBadge tone="success">Current</StatusBadge></div></div>:null}
+        {grouped.length?<div className="device-list">{grouped.map((group)=><div className="device-row" key={`${group.label}-${group.platform}`}><div><strong>{group.label}</strong><small>{group.sessionCount} session{group.sessionCount===1?"":"s"} · Last active {new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(group.lastActivityAt))}</small></div><StatusBadge>Active</StatusBadge></div>)}</div>:<EmptyState title="No other sessions" description="Only your current Account session is active."/>}
+        {otherSessionCount>0&&canRevokeOthers?<div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4"><p className="m-0 text-xs text-[var(--muted)]">{otherSessionCount} other active session{otherSessionCount===1?"":"s"} across {grouped.length} browser environment{grouped.length===1?"":"s"}.</p><Button variant="secondary" disabled={revokeOthers.isPending} onClick={()=>void revokeOthers.mutateAsync()}>{revokeOthers.isPending?"Signing out…":"Sign out all other sessions"}</Button></div>:null}
+      </div>
+    </Panel>
     <Panel title="Recent security activity" description="Important sign-ins and Account security changes.">
       {capabilities.data?.securityActivityRead
         ? <><div className="activity-list">{q.data.recentActivity.map((event)=><Link className="activity-row" key={event.id} to={`/security/activity/${event.id}`}><span><strong>{event.title}</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(event.occurredAt))}</small></span><StatusBadge tone={event.severity==="warning"?"warning":event.severity==="critical"?"danger":"neutral"}>{event.category}</StatusBadge></Link>)}</div><Link className="inline-link" to="/security/activity">View all activity</Link></>
@@ -159,7 +189,6 @@ export function SecurityPage(){
     </Panel>
   </div></>;
 }
-
 export function SecurityActivityPage(){
   const q=useSecurityActivity();
   const [filter,setFilter]=useState<"all"|"authentication"|"security"|"apps"|"account">("all");
@@ -177,49 +206,9 @@ export function SecurityEventPage(){
   if(q.isLoading)return <Loading/>;
   if(!q.data)return <><PageHeader title="Activity unavailable" description="This Account activity record could not be found."/><Link className="inline-link" to="/security/activity">Back to security activity</Link></>;
   const event=q.data;
-  return <><PageHeader title={event.title} description={event.description}/><Panel title="Event details"><dl className="detail-grid"><div><dt>Category</dt><dd>{event.category}</dd></div><div><dt>Time</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"medium"}).format(new Date(event.occurredAt))}</dd></div>{event.deviceId?<div><dt>Device</dt><dd><Link className="inline-link" to={`/devices/${event.deviceId}`}>{event.deviceId}</Link></dd></div>:null}<div><dt>Event ID</dt><dd className="font-mono text-sm">{event.id}</dd></div></dl></Panel></>;
+  return <><PageHeader title={event.title} description={event.description}/><Panel title="Event details"><dl className="detail-grid"><div><dt>Category</dt><dd>{event.category}</dd></div><div><dt>Time</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"medium"}).format(new Date(event.occurredAt))}</dd></div>{event.deviceId?<div><dt>Session environment</dt><dd><Link className="inline-link" to="/security#sessions">Review active sessions</Link></dd></div>:null}<div><dt>Event ID</dt><dd className="font-mono text-sm">{event.id}</dd></div></dl></Panel></>;
 }
 
-export function DevicesPage(){
-  const q=useDevices();
-  const capabilities=useCapabilities();
-  const revokeDevice=useRevokeDevice();
-  const revokeOthers=useRevokeOtherSessions();
-  const [target,setTarget]=useState<{id:string;label:string}|null>(null);
-  const devices=q.data??[];
-  const others=devices.filter((device)=>!device.current);
-  if(q.isLoading||capabilities.isLoading)return <Loading/>;
-  const canIndividual=capabilities.data?.sessionRevocation==="individual";
-  const canOthers=capabilities.data?.sessionRevocation==="individual"||capabilities.data?.sessionRevocation==="others-only";
-  return <><PageHeader title="Devices" description="Recognized client environments with active THIEPN Account sessions."/>
-    {capabilities.data?.deviceIdentity==="session-derived"?<Notice>Production currently identifies active session environments, not physical hardware. A browser session can therefore appear as its own device entry.</Notice>:null}
-    <div className="mt-4 space-y-4">
-      {devices.filter((device)=>device.current).map((device)=><Panel key={device.id} title={device.label} description="Current session environment"><div className="flex items-center justify-between gap-4"><p className="text-sm text-[var(--muted)]">{device.sessions.length} active session{device.sessions.length===1?"":"s"}</p><Link className="inline-link" to={`/devices/${device.id}`}>View</Link></div></Panel>)}
-      <Panel title="Other signed-in environments" description={others.length?"Remote Account sessions you can review.":"No other sessions are signed in."}>
-        {others.length?<div className="device-list">{others.map((device)=><div className="device-row" key={device.id}><Link to={`/devices/${device.id}`}><strong>{device.label}</strong><small>{device.platform} · {device.sessions.length} session{device.sessions.length===1?"":"s"}</small></Link>{canIndividual?<Button variant="ghost" onClick={()=>setTarget({id:device.id,label:device.label})}>Sign out</Button>:<StatusBadge>Active</StatusBadge>}</div>)}</div>:<EmptyState title="Only this session" description="No other active Account sessions are present."/>}
-      </Panel>
-      {others.length&&canOthers?<Button onClick={()=>void revokeOthers.mutateAsync()} disabled={revokeOthers.isPending}>{revokeOthers.isPending?"Signing out…":"Sign out all other sessions"}</Button>:null}
-    </div>
-    <ConfirmDialog open={Boolean(target)} title={`Sign out ${target?.label??"device"}?`} description="All active Account sessions associated with this environment will need to sign in again. Existing app data is not erased." confirmLabel="Sign out" danger pending={revokeDevice.isPending} onCancel={()=>setTarget(null)} onConfirm={async()=>{if(!target)return;await revokeDevice.mutateAsync(target.id);setTarget(null);}}/>
-  </>;
-}
-
-export function DeviceDetailPage(){
-  const {deviceId}=useParams();
-  const q=useDevice(deviceId);
-  const capabilities=useCapabilities();
-  const revokeSession=useRevokeSession();
-  const [target,setTarget]=useState<{id:string;name:string}|null>(null);
-  if(q.isLoading||capabilities.isLoading)return <Loading/>;
-  if(!q.data)return <><PageHeader title="Session no longer active" description="This session environment no longer has active Account access."/><Link className="inline-link" to="/devices">Back to devices</Link></>;
-  const device=q.data;
-  const canIndividual=capabilities.data?.sessionRevocation==="individual";
-  return <><PageHeader title={device.label} description={device.current?"Current session environment":device.platform}/><div className="space-y-4">
-    {capabilities.data?.deviceIdentity==="session-derived"?<Notice>This entry represents an authenticated browser session environment, not a verified physical device identity.</Notice>:null}
-    <Panel title="Environment"><dl className="detail-grid"><div><dt>Platform</dt><dd>{device.platform}</dd></div><div><dt>First seen</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(device.firstSeenAt))}</dd></div><div><dt>Last activity</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(device.lastActivityAt))}</dd></div><div><dt>Environment ID</dt><dd className="font-mono text-sm">{device.id}</dd></div></dl></Panel>
-    <Panel title="Active sessions"><div className="device-list">{device.sessions.map((session)=><div className="device-row" key={session.id}><div><strong>{session.clientName}</strong><small>{session.current?"Current session":`Last active ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(session.lastActivityAt))}`}</small></div>{session.current?<StatusBadge tone="success">Current</StatusBadge>:canIndividual?<Button variant="ghost" onClick={()=>setTarget({id:session.id,name:session.clientName})}>Sign out</Button>:<StatusBadge>Active</StatusBadge>}</div>)}</div></Panel>
-  </div><ConfirmDialog open={Boolean(target)} title={`Sign out ${target?.name??"session"}?`} description="This session will need to sign in again. Other sessions are unaffected." confirmLabel="Sign out" danger pending={revokeSession.isPending} onCancel={()=>setTarget(null)} onConfirm={async()=>{if(!target)return;await revokeSession.mutateAsync(target.id);setTarget(null);}}/></>;
-}
 export function AppsPage(){
   const q=useApps();
   if(q.isLoading)return <Loading/>;
