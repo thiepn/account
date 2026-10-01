@@ -78,7 +78,7 @@ export function AccountShell(){
       <aside className="account-sidebar">
         <Brand/>
         <Navigation/>
-        <div className="account-sidebar-footer">
+        <div className="account-sidebar-footer"><a className="nav-secondary" href="https://thiepn.dev/home/" referrerPolicy="no-referrer">Return to Hub</a>
           <button className="nav-secondary" onClick={theme.cycle}>{theme.mode==="dark"?<Moon size={17}/>:<Sun size={17}/>}<span>Theme · {theme.mode}</span></button>
           <button className="nav-secondary" onClick={signOut}><LogOut size={17}/><span>Sign out</span></button>
         </div>
@@ -92,7 +92,7 @@ export function AccountShell(){
       <div ref={drawerRef} className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Account navigation">
         <div className="drawer-brand"><Brand compact/><button ref={closeRef} className="icon-button" onClick={()=>setDrawerOpen(false)} aria-label="Close navigation"><X size={19}/></button></div>
         <Navigation onNavigate={()=>setDrawerOpen(false)}/>
-        <div className="account-sidebar-footer">
+        <div className="account-sidebar-footer"><a className="nav-secondary" href="https://thiepn.dev/home/" referrerPolicy="no-referrer">Return to Hub</a>
           <button className="nav-secondary" onClick={theme.cycle}>{theme.mode==="dark"?<Moon size={17}/>:<Sun size={17}/>}<span>Theme · {theme.mode}</span></button>
           <button className="nav-secondary" onClick={signOut}><LogOut size={17}/><span>Sign out</span></button>
         </div>
