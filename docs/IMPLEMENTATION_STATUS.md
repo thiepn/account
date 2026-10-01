@@ -185,3 +185,19 @@ Implemented without returning to decorative SaaS styling:
 - blue current-session emphasis;
 - color-coded Data & Backup and Privacy surfaces;
 - no glassmorphism, glow fields, decorative blobs, or oversized gradient cards.
+
+
+## Composition and interaction polish — 2026-10-01
+
+The expressive-color pass was extended beyond Overview:
+
+- each main navigation destination now keeps its own active accent color;
+- connected apps use a responsive two-column visual card grid on desktop;
+- app tiles have restrained lift/hover feedback and persistent pastel identities;
+- Profile sections now use pink/purple/yellow functional accents;
+- App detail uses peach/purple/blue/pink by connection/access/data/destructive purpose;
+- Cloud-data detail uses blue/mint/peach/yellow by sync/storage/client/settings purpose;
+- backup and export pages receive recovery/data accents;
+- Overview rows now reveal a matching edge accent on hover;
+- section headings have a compact colored marker;
+- motion remains limited to 1–2px functional feedback and is disabled by reduced-motion preferences.
