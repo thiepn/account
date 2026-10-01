@@ -15,7 +15,7 @@ import { Notice } from "../components/ui/Notice";
 import { useSensitiveAction } from "../account/useSensitiveAction";
 import { Boxes, ChevronRight, CloudCog, Laptop2, ShieldCheck } from "lucide-react";
 
-function PageHeader({title,description}:{title:string;description:string}){return <header className="page-header"><h1>{title}</h1><p>{description}</p></header>;}
+function PageHeader({title,description}:{title:string;description:string}){return <header className="page-header"><div className="page-color-strip" aria-hidden="true"><span/><span/><span/><span/></div><h1>{title}</h1><p>{description}</p></header>;}
 function Loading(){return <div className="loading-card" aria-label="Loading"><div className="loading-shimmer"/></div>;}
 
 export function OverviewPage(){
@@ -42,22 +42,22 @@ export function OverviewPage(){
 
     <h2 className="section-title">Account settings</h2>
     <div className="overview-links">
-      <Link className="overview-link-row" to="/security">
+      <Link className="overview-link-row" data-tone="purple" to="/security">
         <span className="overview-link-icon"><ShieldCheck size={18}/></span>
         <span className="overview-link-copy"><strong>Security</strong><small>Sign-in method, protection and recent activity</small></span>
         <span className="overview-link-value"><strong>{securityValue}</strong><ChevronRight size={16}/></span>
       </Link>
-      <Link className="overview-link-row" to="/security#sessions">
+      <Link className="overview-link-row" data-tone="blue" to="/security#sessions">
         <span className="overview-link-icon"><Laptop2 size={18}/></span>
         <span className="overview-link-copy"><strong>Where you're signed in</strong><small>Review and sign out Account sessions</small></span>
         <span className="overview-link-value"><strong>{q.data.capabilities.devicesRead?`${sessionCount} active`:"Unavailable"}</strong><ChevronRight size={16}/></span>
       </Link>
-      <Link className="overview-link-row" to="/apps">
+      <Link className="overview-link-row" data-tone="peach" to="/apps">
         <span className="overview-link-icon"><Boxes size={18}/></span>
         <span className="overview-link-copy"><strong>Connected apps</strong><small>Manage app connections and permissions</small></span>
         <span className="overview-link-value"><strong>{q.data.capabilities.appsRead?`${apps.length} connected`:"Unavailable"}</strong><ChevronRight size={16}/></span>
       </Link>
-      <Link className="overview-link-row" to="/data">
+      <Link className="overview-link-row" data-tone="mint" to="/data">
         <span className="overview-link-icon"><CloudCog size={18}/></span>
         <span className="overview-link-copy"><strong>Data & Backup</strong><small>Cloud data, sync and recovery snapshots</small></span>
         <span className="overview-link-value"><strong>{backupValue}</strong><ChevronRight size={16}/></span>
@@ -209,16 +209,16 @@ export function SecurityPage(){
 
   return <><PageHeader title="Security" description="Sign-in, protection and active Account sessions."/><div className="space-y-4">
     {q.data.attention.length?<Notice tone="warning">{q.data.attention[0]}</Notice>:null}
-    <Panel title="Sign-in method"><div className="flex items-center justify-between gap-4"><p className="text-sm">{q.data.authMethod}</p><StatusBadge tone="success">Connected</StatusBadge></div></Panel>
-    <Panel title="Additional protection"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-medium">Two-step verification</p><p className="mt-1 text-sm text-[var(--muted)]">Status is read from your THIEPN Account authentication factors.</p></div><StatusBadge tone={q.data.twoStepVerification==="enabled"?"success":"neutral"}>{q.data.twoStepVerification}</StatusBadge></div></Panel>
-    <Panel title="Where you're signed in" description="Browser sessions are grouped by browser and operating system." >
+    <Panel title="Sign-in method" className="ui-panel-accent-purple ui-panel-soft-purple"><div className="flex items-center justify-between gap-4"><p className="text-sm">{q.data.authMethod}</p><StatusBadge tone="success">Connected</StatusBadge></div></Panel>
+    <Panel title="Additional protection" className="ui-panel-accent-mint"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-medium">Two-step verification</p><p className="mt-1 text-sm text-[var(--muted)]">Status is read from your THIEPN Account authentication factors.</p></div><StatusBadge tone={q.data.twoStepVerification==="enabled"?"success":"neutral"}>{q.data.twoStepVerification}</StatusBadge></div></Panel>
+    <Panel title="Where you're signed in" description="Browser sessions are grouped by browser and operating system." className="ui-panel-accent-blue">
       <div id="sessions" className="space-y-4 scroll-mt-20">
-        {current?<div className="rounded-xl border border-[var(--border)] bg-[var(--surface-hover)] p-4"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-semibold">{current.label}</p><p className="mt-1 text-xs text-[var(--muted)]">Current session · active now</p></div><StatusBadge tone="success">Current</StatusBadge></div></div>:null}
+        {current?<div className="security-current-session rounded-xl border border-[var(--border)] bg-[var(--surface-hover)] p-4"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-semibold">{current.label}</p><p className="mt-1 text-xs text-[var(--muted)]">Current session · active now</p></div><StatusBadge tone="success">Current</StatusBadge></div></div>:null}
         {grouped.length?<div className="device-list">{grouped.map((group)=><div className="device-row" key={`${group.label}-${group.platform}`}><div><strong>{group.label}</strong><small>{group.sessionCount} session{group.sessionCount===1?"":"s"} · Last active {new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(group.lastActivityAt))}</small></div><StatusBadge>Active</StatusBadge></div>)}</div>:<EmptyState title="No other sessions" description="Only your current Account session is active."/>}
         {otherSessionCount>0&&canRevokeOthers?<div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4"><p className="m-0 text-xs text-[var(--muted)]">{otherSessionCount} other active session{otherSessionCount===1?"":"s"} across {grouped.length} browser environment{grouped.length===1?"":"s"}.</p><Button variant="secondary" disabled={revokeOthers.isPending} onClick={()=>void revokeOthers.mutateAsync()}>{revokeOthers.isPending?"Signing out…":"Sign out all other sessions"}</Button></div>:null}
       </div>
     </Panel>
-    <Panel title="Recent security activity" description="Important sign-ins and Account security changes.">
+    <Panel title="Recent security activity" description="Important sign-ins and Account security changes." className="ui-panel-accent-peach">
       {capabilities.data?.securityActivityRead
         ? <><div className="activity-list">{q.data.recentActivity.map((event)=><Link className="activity-row" key={event.id} to={`/security/activity/${event.id}`}><span><strong>{event.title}</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(event.occurredAt))}</small></span><StatusBadge tone={event.severity==="warning"?"warning":event.severity==="critical"?"danger":"neutral"}>{event.category}</StatusBadge></Link>)}</div><Link className="inline-link" to="/security/activity">View all activity</Link></>
         : <p className="m-0 text-sm text-[var(--muted)]">Detailed Account security-event history is not available from the current production backend yet.</p>}
@@ -250,10 +250,9 @@ export function AppsPage(){
   if(q.isLoading)return <Loading/>;
   const apps=q.data??[];
   return <><PageHeader title="Apps" description="Applications currently connected to your THIEPN Account."/>
-    {apps.length?<div className="space-y-3">{apps.map((app)=><Link key={app.id} to={`/apps/${app.id}`} className="block no-underline"><Panel title={app.name} description={`${app.permissionCount} granted permission${app.permissionCount===1?"":"s"}`}><div className="flex items-center justify-between gap-4"><p className="m-0 text-sm text-[var(--muted)]">Manage connection and Account access.</p><StatusBadge tone={app.status==="limited"?"warning":app.status==="error"?"danger":"success"}>{app.status}</StatusBadge></div></Panel></Link>)}</div>:<Panel title="Connected apps"><EmptyState title="No connected apps" description="Apps will appear here after they connect to your THIEPN Account."/></Panel>}
+    {apps.length?<div className="space-y-3">{apps.map((app,index)=><Link key={app.id} to={`/apps/${app.id}`} className="block no-underline"><Panel title="" className={["ui-panel",["ui-panel-accent-purple","ui-panel-accent-blue","ui-panel-accent-mint","ui-panel-accent-peach","ui-panel-accent-pink"][index%5]].join(" ")}><div className="app-card-row"><span className="app-card-icon" data-tone={index%5}>{app.name.trim().charAt(0).toUpperCase()}</span><span className="app-card-copy"><strong>{app.name}</strong><small>{app.permissionCount} granted permission{app.permissionCount===1?"":"s"} · Manage connection and Account access</small></span><StatusBadge tone={app.status==="limited"?"warning":app.status==="error"?"danger":"success"}>{app.status}</StatusBadge><ChevronRight size={16} className="text-[var(--muted)]"/></div></Panel></Link>)}</div>:<Panel title="Connected apps" className="ui-panel-accent-peach"><EmptyState title="No connected apps" description="Apps will appear here after they connect to your THIEPN Account."/></Panel>}
   </>;
 }
-
 export function AppDetailPage(){
   const {appId}=useParams();
   const q=useApp(appId);
@@ -293,12 +292,12 @@ export function DataPage(){
   return <><PageHeader title="Data & Backup" description="Live cloud data, synchronization and recovery status."/>
     {summary.data.attentionCount?<Notice tone="warning">{summary.data.attentionCount} app{summary.data.attentionCount===1?" needs":"s need"} sync attention.</Notice>:null}
     <div className="mt-4 grid gap-4 lg:grid-cols-2">
-      <Panel title="Cloud data" description={`${summary.data.appCount} stored app namespace${summary.data.appCount===1?"":"s"} · ${summary.data.storageApproximate?"approx. ":""}${new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:1}).format(summary.data.totalStorageBytes/1_000_000)}`}>
+      <Panel title="Cloud data" className="ui-panel-accent-blue ui-panel-soft-blue" description={`${summary.data.appCount} stored app namespace${summary.data.appCount===1?"":"s"} · ${summary.data.storageApproximate?"approx. ":""}${new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:1}).format(summary.data.totalStorageBytes/1_000_000)}`}>
         {active.length?<div className="data-list">{active.map((item)=><Link className="data-row" key={item.appId} to={`/data/apps/${item.appId}`}><span><strong>{item.appName}</strong><small>{item.sync.lastSuccessfulSyncAt?`Last successful sync ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.sync.lastSuccessfulSyncAt))}`:"No successful sync yet"}</small></span><StatusBadge tone={syncTone(item.sync.status)}>{item.sync.status}</StatusBadge></Link>)}</div>:<EmptyState title="No cloud data" description="App cloud data will appear here after a connected app stores it."/>}
       </Panel>
-      <Panel title="Backup" description={summary.data.backupStatus}><p className="text-sm text-[var(--muted)]">Backup status is separate from cloud-sync status.</p><Link className="inline-link" to="/data/backups">Manage backups</Link></Panel>
+      <Panel title="Backup" description={summary.data.backupStatus} className="ui-panel-accent-mint ui-panel-soft-mint"><p className="text-sm text-[var(--muted)]">Backup status is separate from cloud-sync status.</p><Link className="inline-link" to="/data/backups">Manage backups</Link></Panel>
     </div>
-    {retained.length?<div className="mt-4"><Panel title="Retained app data" description="Disconnected apps can retain cloud data until you explicitly delete it."><div className="data-list">{retained.map((item)=><Link className="data-row" key={item.appId} to={`/data/apps/${item.appId}`}><span><strong>{item.appName}</strong><small>Cloud data retained</small></span><StatusBadge>retained</StatusBadge></Link>)}</div></Panel></div>:null}
+    {retained.length?<div className="mt-4"><Panel title="Retained app data" description="Disconnected apps can retain cloud data until you explicitly delete it." className="ui-panel-accent-yellow"><div className="data-list">{retained.map((item)=><Link className="data-row" key={item.appId} to={`/data/apps/${item.appId}`}><span><strong>{item.appName}</strong><small>Cloud data retained</small></span><StatusBadge>retained</StatusBadge></Link>)}</div></Panel></div>:null}
   </>;
 }
 
@@ -380,9 +379,9 @@ export function PrivacyPage(){
   return <><PageHeader title="Privacy" description="Export, cloud-data deletion and Account lifecycle controls."/>
     {q.data.accountStatus==="deletion-pending"?<Notice tone="warning">Account deletion is scheduled. Review or cancel it from the deletion status page.</Notice>:null}
     <div className="mt-4 space-y-4">
-      <Panel title="Data export" description={`${q.data.readyExportCount} export${q.data.readyExportCount===1?"":"s"} ready to download`}><Link className="inline-link" to="/privacy/export">Manage exports</Link></Panel>
-      <Panel title="Stored app data" description={`${q.data.storedAppCount} app namespace${q.data.storedAppCount===1?"":"s"} stored`}><p className="text-sm text-[var(--muted)]">Delete individual cloud-data namespaces without disconnecting the app.</p><Link className="inline-link" to="/data">Review stored data</Link></Panel>
-      <Panel title="Delete THIEPN Account" description="Schedule deletion of the entire Account and its managed data lifecycle."><Link className="ui-button ui-button-danger no-underline" to={q.data.accountStatus==="deletion-pending"?"/account/deletion/status":"/account/deletion"}>{q.data.accountStatus==="deletion-pending"?"View deletion status":"Delete Account"}</Link></Panel>
+      <Panel title="Data export" className="ui-panel-accent-blue ui-panel-soft-blue" description={`${q.data.readyExportCount} export${q.data.readyExportCount===1?"":"s"} ready to download`}><Link className="inline-link" to="/privacy/export">Manage exports</Link></Panel>
+      <Panel title="Stored app data" className="ui-panel-accent-mint ui-panel-soft-mint" description={`${q.data.storedAppCount} app namespace${q.data.storedAppCount===1?"":"s"} stored`}><p className="text-sm text-[var(--muted)]">Delete individual cloud-data namespaces without disconnecting the app.</p><Link className="inline-link" to="/data">Review stored data</Link></Panel>
+      <Panel title="Delete THIEPN Account" className="ui-panel-accent-pink privacy-danger-panel" description="Schedule deletion of the entire Account and its managed data lifecycle."><Link className="ui-button ui-button-danger no-underline" to={q.data.accountStatus==="deletion-pending"?"/account/deletion/status":"/account/deletion"}>{q.data.accountStatus==="deletion-pending"?"View deletion status":"Delete Account"}</Link></Panel>
     </div>
   </>;
 }
@@ -441,7 +440,7 @@ export function SignInPage(){
   const returnTo=(location.state as {returnTo?:string}|null)?.returnTo??"/";
   async function signIn(){setError(false);try{const result=await service.auth.signIn(returnTo);if(!result.redirecting){await queryClient.invalidateQueries({queryKey:["auth"]});navigate(returnTo,{replace:true});}}catch{setError(true);}}
   return <main className="auth-screen"><section className="auth-card">
-    <div className="auth-brand"><strong>THIEPN</strong><span>Account</span></div>
+    <div className="auth-brand"><strong>THIEPN</strong><span>Account</span><div className="page-color-strip" aria-hidden="true"><span/><span/><span/><span/></div></div>
     <h1>Sign in</h1>
     <p>Continue to your THIEPN Account settings.</p>
     {error?<div className="mt-4"><Notice tone="error">Couldn’t start sign-in. Check the Account backend configuration and try again.</Notice></div>:null}

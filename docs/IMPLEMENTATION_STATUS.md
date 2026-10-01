@@ -159,3 +159,29 @@ The current direction is intentionally product-UI-first:
 - typography and spacing tightened to resemble a mature design tool/account settings surface rather than a generated SaaS template.
 
 This is Canva-inspired in layout discipline and interaction hierarchy, not a pixel copy of Canva branding or proprietary UI.
+
+
+## Color system refinement — 2026-10-01
+
+The Canva-inspired flat redesign was retained, but the interface was intentionally made less monochrome.
+
+Color is now semantic and repeated consistently:
+
+- purple: identity/account;
+- blue: sessions/cloud sync;
+- mint: security/healthy data/recovery;
+- peach: apps/integrations;
+- pink: privacy/destructive lifecycle;
+- yellow: retained/attention states.
+
+Implemented without returning to decorative SaaS styling:
+
+- four-color THIEPN brand strip;
+- multicolor navigation icon tiles;
+- colored Overview row icons and matching hover tints;
+- profile block with restrained purple emphasis;
+- colored top accents on functional panels;
+- varied app cards with per-app pastel icon tiles;
+- blue current-session emphasis;
+- color-coded Data & Backup and Privacy surfaces;
+- no glassmorphism, glow fields, decorative blobs, or oversized gradient cards.

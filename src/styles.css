@@ -17,6 +17,16 @@
   --primary-hover:#6a20c7;
   --primary-soft:#f2eafd;
   --primary-soft-hover:#eadcf9;
+  --blue:#3277e8;
+  --blue-soft:#eaf2ff;
+  --mint:#168f6a;
+  --mint-soft:#e7f8f1;
+  --peach:#d8662f;
+  --peach-soft:#fff0e8;
+  --pink:#c94c91;
+  --pink-soft:#fdebf5;
+  --yellow:#9b7414;
+  --yellow-soft:#fff7db;
   --primary-foreground:#ffffff;
   --success:#168354;
   --success-soft:#edf9f2;
@@ -49,6 +59,16 @@
   --primary-hover:#b47df7;
   --primary-soft:#302342;
   --primary-soft-hover:#3a2950;
+  --blue:#76a7ff;
+  --blue-soft:#1d2b43;
+  --mint:#74d7b3;
+  --mint-soft:#18352b;
+  --peach:#ff9a67;
+  --peach-soft:#42281e;
+  --pink:#f08bc2;
+  --pink-soft:#422438;
+  --yellow:#efd174;
+  --yellow-soft:#3d351c;
   --primary-foreground:#ffffff;
   --success:#6fd1a0;
   --success-soft:#173124;
@@ -64,7 +84,9 @@
 
 *{box-sizing:border-box}
 html{background:var(--background);scroll-behavior:smooth}
-body{margin:0;min-width:320px;min-height:100dvh;background:var(--background);color:var(--foreground);-webkit-font-smoothing:antialiased}
+body{margin:0;min-width:320px;min-height:100dvh;background:
+  linear-gradient(90deg,color-mix(in srgb,var(--primary) 2.5%,var(--background)) 0%,var(--background) 22%,var(--background) 78%,color-mix(in srgb,var(--blue) 2%,var(--background)) 100%);
+  color:var(--foreground);-webkit-font-smoothing:antialiased}
 ::selection{background:var(--primary-soft);color:var(--foreground)}
 button,a{-webkit-tap-highlight-color:transparent}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid color-mix(in srgb,var(--focus) 28%,transparent);outline-offset:2px}
@@ -89,6 +111,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
   align-items:center;
   gap:9px;
   padding:0 20px;
+  position:relative;
+}
+.account-brand::after{
+  content:"";
+  position:absolute;
+  left:20px;
+  bottom:8px;
+  width:54px;
+  height:4px;
+  border-radius:999px;
+  background:linear-gradient(90deg,var(--primary) 0 25%,var(--blue) 25% 50%,var(--mint) 50% 75%,var(--peach) 75% 100%);
 }
 .account-wordmark{font-size:18px;font-weight:800;letter-spacing:-.035em}
 .account-brand-copy{display:flex;align-items:baseline;gap:7px}
@@ -112,8 +145,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .account-nav-link:hover{background:var(--surface-subtle);color:var(--foreground)}
 .account-nav-link-active{background:var(--primary-soft);color:var(--foreground);font-weight:650}
 .account-nav-link-active:hover{background:var(--primary-soft-hover)}
-.account-nav-icon{display:grid;width:24px;height:24px;place-items:center;color:var(--muted)}
-.account-nav-link-active .account-nav-icon{color:var(--primary)}
+.account-nav-icon{display:grid;width:28px;height:28px;place-items:center;border-radius:8px;color:var(--muted);transition:background .13s ease,color .13s ease}
+.account-nav-list li:nth-child(1) .account-nav-icon{background:var(--primary-soft);color:var(--primary)}
+.account-nav-list li:nth-child(2) .account-nav-icon{background:var(--pink-soft);color:var(--pink)}
+.account-nav-list li:nth-child(3) .account-nav-icon{background:var(--mint-soft);color:var(--mint)}
+.account-nav-list li:nth-child(4) .account-nav-icon{background:var(--peach-soft);color:var(--peach)}
+.account-nav-list li:nth-child(5) .account-nav-icon{background:var(--blue-soft);color:var(--blue)}
+.account-nav-list li:nth-child(6) .account-nav-icon{background:var(--yellow-soft);color:var(--yellow)}
+.account-nav-link-active{box-shadow:inset 3px 0 0 var(--primary)}
 
 .sidebar-bottom{margin-top:auto;border-top:1px solid var(--border);padding:10px}
 .sidebar-profile{
@@ -130,9 +169,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
   height:34px;
   flex:0 0 34px;
   place-items:center;
-  border-radius:999px;
-  background:var(--primary);
-  color:#fff;
+  border-radius:10px;
+  background:var(--pink-soft);
+  color:var(--pink);
+  border:1px solid color-mix(in srgb,var(--pink) 22%,var(--border));
   font-size:13px;
   font-weight:760;
 }
@@ -198,6 +238,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 
 /* Typography and sections */
 .page-header{margin:0 0 30px}
+.page-color-strip{display:flex;gap:5px;margin-bottom:13px}
+.page-color-strip span{display:block;width:18px;height:5px;border-radius:999px}
+.page-color-strip span:nth-child(1){background:var(--primary)}
+.page-color-strip span:nth-child(2){background:var(--blue)}
+.page-color-strip span:nth-child(3){background:var(--mint)}
+.page-color-strip span:nth-child(4){background:var(--peach)}
 .page-header h1{margin:0;color:var(--foreground);font-size:30px;font-weight:720;line-height:1.15;letter-spacing:-.035em}
 .page-header p{max-width:680px;margin:8px 0 0;color:var(--muted);font-size:14px;line-height:1.6}
 .section-title{margin:30px 0 10px;color:var(--foreground);font-size:14px;font-weight:680}
@@ -208,7 +254,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 @keyframes pulse{50%{opacity:.48}}
 
 /* Settings cards */
-.ui-panel{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);padding:21px 22px}
+.ui-panel{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);padding:21px 22px;position:relative;overflow:hidden}
+.ui-panel-accent-purple{border-top:3px solid var(--primary)}
+.ui-panel-accent-blue{border-top:3px solid var(--blue)}
+.ui-panel-accent-mint{border-top:3px solid var(--mint)}
+.ui-panel-accent-peach{border-top:3px solid var(--peach)}
+.ui-panel-accent-pink{border-top:3px solid var(--pink)}
+.ui-panel-accent-yellow{border-top:3px solid var(--yellow)}
+.ui-panel-soft-purple{background:color-mix(in srgb,var(--surface) 90%,var(--primary-soft))}
+.ui-panel-soft-blue{background:color-mix(in srgb,var(--surface) 90%,var(--blue-soft))}
+.ui-panel-soft-mint{background:color-mix(in srgb,var(--surface) 90%,var(--mint-soft))}
+.ui-panel-soft-peach{background:color-mix(in srgb,var(--surface) 90%,var(--peach-soft))}
+.ui-panel-soft-pink{background:color-mix(in srgb,var(--surface) 90%,var(--pink-soft))}
 .ui-panel+.ui-panel{margin-top:0}
 .ui-panel-header{margin-bottom:16px}
 .ui-panel-title{margin:0;color:var(--foreground);font-size:15px;font-weight:680;letter-spacing:-.012em}
@@ -218,12 +275,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
   display:flex;
   align-items:center;
   gap:16px;
-  border:1px solid var(--border);
+  border:1px solid color-mix(in srgb,var(--primary) 20%,var(--border));
   border-radius:var(--radius-lg);
-  background:var(--surface);
+  background:linear-gradient(90deg,color-mix(in srgb,var(--primary-soft) 62%,var(--surface)) 0%,var(--surface) 52%);
   padding:22px;
 }
-.overview-profile-avatar{display:grid;width:56px;height:56px;flex:0 0 56px;place-items:center;border-radius:999px;background:var(--primary);color:#fff;font-size:20px;font-weight:760}
+.overview-profile-avatar{display:grid;width:56px;height:56px;flex:0 0 56px;place-items:center;border-radius:16px;background:var(--primary);color:#fff;font-size:20px;font-weight:760;box-shadow:6px 6px 0 var(--blue-soft)}
 .overview-profile-copy{min-width:0;flex:1}
 .overview-profile-copy h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em}
 .overview-profile-copy p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
@@ -243,7 +300,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 }
 .overview-link-row:last-child{border-bottom:0}
 .overview-link-row:hover{background:var(--surface-subtle)}
-.overview-link-icon{display:grid;width:36px;height:36px;flex:0 0 36px;place-items:center;border-radius:8px;background:var(--surface-subtle);color:var(--foreground-soft)}
+.overview-link-row[data-tone="purple"]:hover{background:color-mix(in srgb,var(--primary-soft) 60%,var(--surface))}
+.overview-link-row[data-tone="blue"]:hover{background:color-mix(in srgb,var(--blue-soft) 60%,var(--surface))}
+.overview-link-row[data-tone="peach"]:hover{background:color-mix(in srgb,var(--peach-soft) 60%,var(--surface))}
+.overview-link-row[data-tone="mint"]:hover{background:color-mix(in srgb,var(--mint-soft) 60%,var(--surface))}
+.overview-link-icon{display:grid;width:38px;height:38px;flex:0 0 38px;place-items:center;border-radius:10px;background:var(--surface-subtle);color:var(--foreground-soft)}
+.overview-link-row[data-tone="purple"] .overview-link-icon{background:var(--primary-soft);color:var(--primary)}
+.overview-link-row[data-tone="blue"] .overview-link-icon{background:var(--blue-soft);color:var(--blue)}
+.overview-link-row[data-tone="peach"] .overview-link-icon{background:var(--peach-soft);color:var(--peach)}
+.overview-link-row[data-tone="mint"] .overview-link-icon{background:var(--mint-soft);color:var(--mint)}
 .overview-link-copy{display:grid;min-width:0;flex:1;gap:2px}
 .overview-link-copy strong{font-size:13.5px;font-weight:650}
 .overview-link-copy small{color:var(--muted);font-size:11.5px}
@@ -372,3 +437,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
   .auth-card{padding:26px 22px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
+
+/* Colorful product cards */
+.app-card-row{display:flex;align-items:center;gap:14px}
+.app-card-icon{display:grid;width:42px;height:42px;flex:0 0 42px;place-items:center;border-radius:11px;font-size:14px;font-weight:760}
+.app-card-icon[data-tone="0"]{background:var(--primary-soft);color:var(--primary)}
+.app-card-icon[data-tone="1"]{background:var(--blue-soft);color:var(--blue)}
+.app-card-icon[data-tone="2"]{background:var(--mint-soft);color:var(--mint)}
+.app-card-icon[data-tone="3"]{background:var(--peach-soft);color:var(--peach)}
+.app-card-icon[data-tone="4"]{background:var(--pink-soft);color:var(--pink)}
+.app-card-copy{display:grid;min-width:0;flex:1;gap:3px}
+.app-card-copy strong{font-size:13.5px;font-weight:670}
+.app-card-copy small{color:var(--muted);font-size:11.5px}
+.security-current-session{border:1px solid color-mix(in srgb,var(--blue) 22%,var(--border));background:var(--blue-soft)!important}
+.privacy-danger-panel{border-color:color-mix(in srgb,var(--danger) 28%,var(--border));background:color-mix(in srgb,var(--danger-soft) 42%,var(--surface))}
