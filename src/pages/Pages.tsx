@@ -13,9 +13,9 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Notice } from "../components/ui/Notice";
 import { useSensitiveAction } from "../account/useSensitiveAction";
-import { ArrowUpRight, Boxes, CloudCog, Laptop2, ShieldCheck } from "lucide-react";
+import { Boxes, ChevronRight, CloudCog, Laptop2, ShieldCheck } from "lucide-react";
 
-function PageHeader({title,description}:{title:string;description:string}){return <header className="page-header"><div className="page-kicker">Account center</div><h1>{title}</h1><p>{description}</p></header>;}
+function PageHeader({title,description}:{title:string;description:string}){return <header className="page-header"><h1>{title}</h1><p>{description}</p></header>;}
 function Loading(){return <div className="loading-card" aria-label="Loading"><div className="loading-shimmer"/></div>;}
 
 export function OverviewPage(){
@@ -29,36 +29,38 @@ export function OverviewPage(){
   const backupValue=!q.data.capabilities.dataRead?"Unavailable":data.backupStatus==="verified"?"Verified":data.backupStatus==="failed"?"Needs attention":"Not configured";
 
   return <>
-    <PageHeader title="Overview" description="Your identity, security, connected apps and cloud data in one place."/>
+    <PageHeader title="Your account" description="Manage your THIEPN profile, security, connected apps and data."/>
     {identity.status==="deletion-pending"?<Notice tone="warning">Account deletion is pending. Account-changing actions are restricted until the lifecycle completes or is cancelled.</Notice>:null}
     {security.attention.length?<div className="mt-4"><Notice tone="warning">{security.attention[0]}</Notice></div>:null}
 
-    <div className="overview-hero mt-4">
-      <div className="overview-avatar" aria-hidden="true">{initial}</div>
-      <div className="overview-identity">
-        <span className="page-kicker">THIEPN Account</span>
-        <h2>{identity.displayName}</h2>
-        <p>{identity.primaryEmail}</p>
-      </div>
-      <div className="overview-hero-status"><StatusBadge tone={identity.status==="active"?"success":"warning"}>{identity.status}</StatusBadge></div>
+    <h2 className="section-title">Profile</h2>
+    <div className="overview-profile">
+      <div className="overview-profile-avatar" aria-hidden="true">{initial}</div>
+      <div className="overview-profile-copy"><h2>{identity.displayName}</h2><p>{identity.primaryEmail}</p></div>
+      <div className="overview-profile-meta"><StatusBadge tone={identity.status==="active"?"success":"warning"}>{identity.status}</StatusBadge><Link className="ui-button ui-button-secondary no-underline" to="/profile">Edit profile</Link></div>
     </div>
 
-    <div className="overview-grid">
-      <Link className="overview-stat" to="/security">
-        <div className="overview-stat-top"><span className="overview-stat-icon"><ShieldCheck size={18}/></span><ArrowUpRight className="overview-stat-arrow" size={16}/></div>
-        <div><strong>{securityValue}</strong><small>Security status</small></div>
+    <h2 className="section-title">Account settings</h2>
+    <div className="overview-links">
+      <Link className="overview-link-row" to="/security">
+        <span className="overview-link-icon"><ShieldCheck size={18}/></span>
+        <span className="overview-link-copy"><strong>Security</strong><small>Sign-in method, protection and recent activity</small></span>
+        <span className="overview-link-value"><strong>{securityValue}</strong><ChevronRight size={16}/></span>
       </Link>
-      <Link className="overview-stat" to="/security#sessions">
-        <div className="overview-stat-top"><span className="overview-stat-icon"><Laptop2 size={18}/></span><ArrowUpRight className="overview-stat-arrow" size={16}/></div>
-        <div><strong>{q.data.capabilities.devicesRead?sessionCount:"—"}</strong><small>Active session{sessionCount===1?"":"s"}</small></div>
+      <Link className="overview-link-row" to="/security#sessions">
+        <span className="overview-link-icon"><Laptop2 size={18}/></span>
+        <span className="overview-link-copy"><strong>Where you're signed in</strong><small>Review and sign out Account sessions</small></span>
+        <span className="overview-link-value"><strong>{q.data.capabilities.devicesRead?`${sessionCount} active`:"Unavailable"}</strong><ChevronRight size={16}/></span>
       </Link>
-      <Link className="overview-stat" to="/apps">
-        <div className="overview-stat-top"><span className="overview-stat-icon"><Boxes size={18}/></span><ArrowUpRight className="overview-stat-arrow" size={16}/></div>
-        <div><strong>{q.data.capabilities.appsRead?apps.length:"—"}</strong><small>Connected app{apps.length===1?"":"s"}</small></div>
+      <Link className="overview-link-row" to="/apps">
+        <span className="overview-link-icon"><Boxes size={18}/></span>
+        <span className="overview-link-copy"><strong>Connected apps</strong><small>Manage app connections and permissions</small></span>
+        <span className="overview-link-value"><strong>{q.data.capabilities.appsRead?`${apps.length} connected`:"Unavailable"}</strong><ChevronRight size={16}/></span>
       </Link>
-      <Link className="overview-stat" to="/data">
-        <div className="overview-stat-top"><span className="overview-stat-icon"><CloudCog size={18}/></span><ArrowUpRight className="overview-stat-arrow" size={16}/></div>
-        <div><strong>{backupValue}</strong><small>Backup status</small></div>
+      <Link className="overview-link-row" to="/data">
+        <span className="overview-link-icon"><CloudCog size={18}/></span>
+        <span className="overview-link-copy"><strong>Data & Backup</strong><small>Cloud data, sync and recovery snapshots</small></span>
+        <span className="overview-link-value"><strong>{backupValue}</strong><ChevronRight size={16}/></span>
       </Link>
     </div>
   </>;
@@ -439,10 +441,9 @@ export function SignInPage(){
   const returnTo=(location.state as {returnTo?:string}|null)?.returnTo??"/";
   async function signIn(){setError(false);try{const result=await service.auth.signIn(returnTo);if(!result.redirecting){await queryClient.invalidateQueries({queryKey:["auth"]});navigate(returnTo,{replace:true});}}catch{setError(true);}}
   return <main className="auth-screen"><section className="auth-card">
-    <div className="auth-brand-mark" aria-hidden="true">T</div>
-    <span className="auth-eyebrow">THIEPN</span>
-    <h1>Account</h1>
-    <p>One place for your identity, security, connected apps and cloud data.</p>
+    <div className="auth-brand"><strong>THIEPN</strong><span>Account</span></div>
+    <h1>Sign in</h1>
+    <p>Continue to your THIEPN Account settings.</p>
     {error?<div className="mt-4"><Notice tone="error">Couldn’t start sign-in. Check the Account backend configuration and try again.</Notice></div>:null}
     <button className="primary-button auth-button" onClick={signIn}><span className="auth-google-mark" aria-hidden="true">G</span>Continue with Google</button>
     {import.meta.env.DEV?<p className="mt-4 text-xs text-[var(--muted)]">Development defaults to MockAccountService unless VITE_ACCOUNT_SERVICE_MODE=real.</p>:null}
@@ -451,9 +452,9 @@ export function SignInPage(){
 export function AuthCallbackPage(){
   const service=useAccountService();const navigate=useNavigate();const queryClient=useQueryClient();const [failed,setFailed]=useState(false);
   useEffect(()=>{let active=true;(async()=>{try{const returnTo=await service.auth.completeCallback();if(!active)return;await queryClient.invalidateQueries({queryKey:["auth"]});navigate(returnTo,{replace:true});}catch{if(active)setFailed(true);}})();return()=>{active=false;};},[service,navigate,queryClient]);
-  if(failed)return <main className="auth-screen"><section className="auth-card"><div className="auth-brand-mark" aria-hidden="true">T</div><span className="auth-eyebrow">THIEPN Account</span><h1>Sign-in couldn’t be completed.</h1><p>The OAuth callback could not establish your Account session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></section></main>;
-  return <main className="auth-screen"><section className="auth-card"><div className="auth-brand-mark" aria-hidden="true">T</div><span className="auth-eyebrow">THIEPN Account</span><h1>Signing you in…</h1><p>Verifying your secure Account session.</p></section></main>;
+  if(failed)return <main className="auth-screen"><section className="auth-card"><div className="auth-brand"><strong>THIEPN</strong><span>Account</span></div><h1>Sign-in couldn’t be completed.</h1><p>The OAuth callback could not establish your Account session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></section></main>;
+  return <main className="auth-screen"><section className="auth-card"><div className="auth-brand"><strong>THIEPN</strong><span>Account</span></div><h1>Signing you in…</h1><p>Verifying your secure Account session.</p></section></main>;
 }
 
-export function AuthErrorPage(){return <main className="auth-screen"><section className="auth-card"><div className="auth-brand-mark" aria-hidden="true">T</div><span className="auth-eyebrow">THIEPN Account</span><h1>Sign-in error</h1><p>THIEPN Account could not establish your session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></section></main>;}
+export function AuthErrorPage(){return <main className="auth-screen"><section className="auth-card"><div className="auth-brand"><strong>THIEPN</strong><span>Account</span></div><h1>Sign-in error</h1><p>THIEPN Account could not establish your session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></section></main>;}
 export function NotFoundPage(){return <><PageHeader title="Page not found" description="This Account page does not exist."/><a className="text-sm font-medium underline" href="/">Return to Overview</a></>;}

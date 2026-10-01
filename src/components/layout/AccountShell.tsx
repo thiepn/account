@@ -3,14 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccountService } from "../../account/context";
-import { usePrivacySummary } from "../../account/hooks";
+import { useOverview, usePrivacySummary } from "../../account/hooks";
 import { accountRoutes, routeTitle } from "../../app/routes";
 import { useTheme } from "../../app/theme";
 
 function Brand({compact=false}:{compact?:boolean}){
   return <div className={compact?"mobile-brand":"account-brand"}>
-    <div className="account-brand-mark" aria-hidden="true">T</div>
-    <div className="account-brand-copy"><strong>THIEPN Account</strong>{!compact?<span>Account center</span>:null}</div>
+    <div className="account-brand-copy"><strong>THIEPN</strong><span>Account</span></div>
   </div>;
 }
 
@@ -19,7 +18,7 @@ function Navigation({onNavigate}:{onNavigate?:()=>void}){
     const Icon=route.icon;
     return <li key={route.path}><NavLink to={route.path} end={route.path==="/"} onClick={onNavigate}
       className={({isActive})=>["account-nav-link",isActive?"account-nav-link-active":""].filter(Boolean).join(" ")}>
-      <span className="account-nav-icon"><Icon size={17} strokeWidth={1.9} aria-hidden="true"/></span><span>{route.label}</span></NavLink></li>;
+      <span className="account-nav-icon"><Icon size={17} strokeWidth={1.8} aria-hidden="true"/></span><span>{route.label}</span></NavLink></li>;
   })}</ul></nav>;
 }
 
@@ -34,6 +33,10 @@ export function AccountShell(){
   const queryClient=useQueryClient();
   const theme=useTheme();
   const privacy=usePrivacySummary();
+  const overview=useOverview();
+  const profileName=overview.data?.identity.displayName??"THIEPN Account";
+  const profileEmail=overview.data?.identity.primaryEmail??"";
+  const profileInitial=profileName.trim().charAt(0).toUpperCase()||"T";
 
   useEffect(()=>{
     const title=routeTitle(location.pathname);
@@ -78,9 +81,15 @@ export function AccountShell(){
       <aside className="account-sidebar">
         <Brand/>
         <Navigation/>
-        <div className="account-sidebar-footer">
-          <button className="nav-secondary" onClick={theme.cycle}>{theme.mode==="dark"?<Moon size={17}/>:<Sun size={17}/>}<span>Theme · {theme.mode}</span></button>
-          <button className="nav-secondary" onClick={signOut}><LogOut size={17}/><span>Sign out</span></button>
+        <div className="sidebar-bottom">
+          <div className="sidebar-profile">
+            <div className="sidebar-avatar" aria-hidden="true">{profileInitial}</div>
+            <div className="sidebar-profile-copy"><strong>{profileName}</strong><span>{profileEmail||"Personal account"}</span></div>
+          </div>
+          <div className="sidebar-actions">
+            <button className="nav-secondary" onClick={theme.cycle} aria-label={`Theme: ${theme.mode}`}>{theme.mode==="dark"?<Moon size={16}/>:<Sun size={16}/>}<span>Theme</span></button>
+            <button className="nav-secondary" onClick={signOut}><LogOut size={16}/><span>Sign out</span></button>
+          </div>
         </div>
       </aside>
 
@@ -92,9 +101,15 @@ export function AccountShell(){
       <div ref={drawerRef} className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Account navigation">
         <div className="drawer-brand"><Brand compact/><button ref={closeRef} className="icon-button" onClick={()=>setDrawerOpen(false)} aria-label="Close navigation"><X size={19}/></button></div>
         <Navigation onNavigate={()=>setDrawerOpen(false)}/>
-        <div className="account-sidebar-footer">
-          <button className="nav-secondary" onClick={theme.cycle}>{theme.mode==="dark"?<Moon size={17}/>:<Sun size={17}/>}<span>Theme · {theme.mode}</span></button>
-          <button className="nav-secondary" onClick={signOut}><LogOut size={17}/><span>Sign out</span></button>
+        <div className="sidebar-bottom">
+          <div className="sidebar-profile">
+            <div className="sidebar-avatar" aria-hidden="true">{profileInitial}</div>
+            <div className="sidebar-profile-copy"><strong>{profileName}</strong><span>{profileEmail||"Personal account"}</span></div>
+          </div>
+          <div className="sidebar-actions">
+            <button className="nav-secondary" onClick={theme.cycle} aria-label={`Theme: ${theme.mode}`}>{theme.mode==="dark"?<Moon size={16}/>:<Sun size={16}/>}<span>Theme</span></button>
+            <button className="nav-secondary" onClick={signOut}><LogOut size={16}/><span>Sign out</span></button>
+          </div>
         </div>
       </div>
     </div>:null}

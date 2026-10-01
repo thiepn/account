@@ -138,3 +138,24 @@ The Account UI received a full visual redesign without changing domain behavior:
 - improved sticky form actions and small-screen responsive behavior.
 
 The redesign preserves keyboard focus treatment, reduced-motion behavior, compact mobile navigation and all existing AccountService boundaries.
+
+
+## Canva-inspired UI revision — 2026-10-01
+
+The previous visual redesign was intentionally replaced because it still read as AI-generated: decorative gradients, glass surfaces, floating-card composition and dashboard-like stat tiles were removed.
+
+The current direction is intentionally product-UI-first:
+
+- flat neutral workspace background;
+- white/settings-style content surfaces;
+- simple left navigation with purple active state;
+- profile/account controls at the bottom-left of the sidebar;
+- no decorative rings, blobs, glow effects or glassmorphism;
+- minimal shadows and restrained 1px borders;
+- compact 8–12px radii rather than oversized rounded cards;
+- Overview changed from stat-dashboard tiles to a profile block plus settings rows;
+- purple is functional accent color, not decorative wallpaper;
+- sign-in screen simplified to a straightforward product card;
+- typography and spacing tightened to resemble a mature design tool/account settings surface rather than a generated SaaS template.
+
+This is Canva-inspired in layout discipline and interaction hierarchy, not a pixel copy of Canva branding or proprietary UI.
