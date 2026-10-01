@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("desktop shell exposes the canonical Account navigation",async({page})=>{
   await page.goto("/?scenario=default");
-  await expect(page.getByRole("heading",{name:"Overview"})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Your account",exact:true})).toBeVisible();
   const accountNav=page.getByRole("navigation",{name:"Account"});
   for(const name of ["Overview","Profile","Security","Apps","Data & Backup","Privacy"]){
     await expect(accountNav.getByRole("link",{name,exact:true})).toBeVisible();
