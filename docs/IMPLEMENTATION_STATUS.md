@@ -201,3 +201,20 @@ The expressive-color pass was extended beyond Overview:
 - Overview rows now reveal a matching edge accent on hover;
 - section headings have a compact colored marker;
 - motion remains limited to 1–2px functional feedback and is disabled by reduced-motion preferences.
+
+
+## Light-theme material and typography refinement — 2026-10-01
+
+The light theme was rebuilt to address excessive white space and generic dashboard typography:
+
+- light canvas changed from near-white to a visibly tinted cool lavender-gray;
+- sidebar now uses a separate soft lavender surface instead of the same white as content;
+- cards use off-white/lilac surfaces rather than pure white;
+- inputs remain slightly brighter than cards so fields are easier to identify;
+- colored top borders were removed from panels;
+- functional color is now represented by compact colored title markers and soft surface tinting;
+- base cards use softer 16–17px radii, lighter borders and low-contrast elevation rather than outlined template cards;
+- DM Sans variable typography is loaded with robust system fallbacks;
+- page headings, panel titles, body labels and metadata were increased in size and normalized to fewer, cleaner weights;
+- tiny 11–12px dashboard text was reduced substantially;
+- dark mode retains its existing darker material treatment and does not inherit the new light-card shadows.
