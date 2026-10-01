@@ -84,9 +84,7 @@
 
 *{box-sizing:border-box}
 html{background:var(--background);scroll-behavior:smooth}
-body{margin:0;min-width:320px;min-height:100dvh;background:
-  linear-gradient(90deg,color-mix(in srgb,var(--primary) 2.5%,var(--background)) 0%,var(--background) 22%,var(--background) 78%,color-mix(in srgb,var(--blue) 2%,var(--background)) 100%);
-  color:var(--foreground);-webkit-font-smoothing:antialiased}
+body{margin:0;min-width:320px;min-height:100dvh;background:var(--background);color:var(--foreground);-webkit-font-smoothing:antialiased}
 ::selection{background:var(--primary-soft);color:var(--foreground)}
 button,a{-webkit-tap-highlight-color:transparent}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid color-mix(in srgb,var(--focus) 28%,transparent);outline-offset:2px}
@@ -277,8 +275,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
   gap:16px;
   border:1px solid color-mix(in srgb,var(--primary) 20%,var(--border));
   border-radius:var(--radius-lg);
-  background:linear-gradient(90deg,color-mix(in srgb,var(--primary-soft) 62%,var(--surface)) 0%,var(--surface) 52%);
+  background:color-mix(in srgb,var(--surface) 72%,var(--primary-soft));
   padding:22px;
+  box-shadow:inset 5px 0 0 var(--primary);
 }
 .overview-profile-avatar{display:grid;width:56px;height:56px;flex:0 0 56px;place-items:center;border-radius:16px;background:var(--primary);color:#fff;font-size:20px;font-weight:760;box-shadow:6px 6px 0 var(--blue-soft)}
 .overview-profile-copy{min-width:0;flex:1}
