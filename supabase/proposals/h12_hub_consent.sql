@@ -91,4 +91,30 @@ begin
 end $$;
 revoke all on function public.get_thiepn_hub_notes_consent(), public.set_thiepn_hub_notes_consent(text[],uuid), public.authorize_thiepn_hub_notes(text,uuid) from public,anon,authenticated;
 grant execute on function public.get_thiepn_hub_notes_consent(), public.set_thiepn_hub_notes_consent(text[],uuid), public.authorize_thiepn_hub_notes(text,uuid) to authenticated;
+
+-- Disconnect or loss of the underlying Notes entitlement permanently revokes
+-- Hub consent. Reconnecting Notes does not resurrect an earlier grant/revision.
+create function private.revoke_hub_notes_on_entitlement_change() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_row jsonb; v_revoke boolean := false;
+begin
+  v_row := case when tg_op='DELETE' then to_jsonb(old) else to_jsonb(new) end;
+  if v_row->>'app_slug'='notes' then
+    if tg_table_name='account_app_connections' then
+      v_revoke := tg_op='DELETE' or v_row->>'status' is distinct from 'connected';
+    elsif tg_table_name='account_app_grants' and v_row->>'permission_id'='app_data.read' then
+      v_revoke := tg_op='DELETE' or v_row->>'status' is distinct from 'granted';
+    end if;
+  end if;
+  if v_revoke then
+    update private.account_hub_notes_consent set permissions='{}', revision=gen_random_uuid(),updated_at=now()
+      where user_id=(v_row->>'user_id')::uuid;
+  end if;
+  if tg_op='DELETE' then return old; else return new; end if;
+end $$;
+revoke all on function private.revoke_hub_notes_on_entitlement_change() from public,anon,authenticated;
+create trigger hub_notes_connection_revocation after update of status or delete on public.account_app_connections
+for each row execute function private.revoke_hub_notes_on_entitlement_change();
+create trigger hub_notes_entitlement_revocation after update of status or delete on public.account_app_grants
+for each row execute function private.revoke_hub_notes_on_entitlement_change();
 commit;
