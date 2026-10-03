@@ -58,6 +58,7 @@ export interface PrivacyService {
 export interface CapabilityService { getCapabilities():Promise<AccountCapabilities>; }
 
 export interface AccountService {
+  hubOAuth:{details(id:string):Promise<import('./api/hubOAuth').HubOAuthDetails>;decide(id:string,owner:string,approve:boolean):Promise<string>};
   hub:{readConsent():Promise<HubNotesConsent>;saveConsent(permissions:HubNotePurpose[],revision:string|null):Promise<HubNotesConsent>};
   auth:AuthService; profile:ProfileService; security:SecurityService; devices:DeviceService;
   apps:AppsService; data:DataService; backup:BackupService; privacy:PrivacyService; capabilities:CapabilityService;
