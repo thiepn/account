@@ -31,11 +31,11 @@ await claim({sub:B});assert.deepEqual(await call('get_thiepn_hub_notes_consent')
 await assert.rejects(()=>call('set_thiepn_hub_notes_consent',[['notes.hub.summary.read'],null]));
 await claim();assert.equal(await call('authorize_thiepn_hub_notes',['summary',saved.revision]),null);
 await db.exec('reset role');await db.query('insert into private.account_hub_clients values($1,true)',[CLIENT]);
-const hub={client_id:CLIENT,aud:'thiepn-hub',session_id:SESSION};
+const hub={client_id:CLIENT,aud:'authenticated',session_id:SESSION};
 await claim(hub);assert.equal((await call('authorize_thiepn_hub_notes',['summary',saved.revision])).accountId,A);
 await assert.rejects(()=>call('set_thiepn_hub_notes_consent',[[],saved.revision]));
 assert.equal(await call('authorize_thiepn_hub_notes',['search',saved.revision]),null);
-for(const patch of [{client_id:B},{aud:'authenticated'},{sub:B},{exp:1},{session_id:B},{is_anonymous:true}]){
+for(const patch of [{client_id:B},{aud:'thiepn-hub'},{sub:B},{exp:1},{session_id:B},{is_anonymous:true}]){
 await claim({...hub,...patch});assert.equal(await call('authorize_thiepn_hub_notes',['summary',saved.revision]),null);}
 await claim();const old=saved.revision;saved=await call('set_thiepn_hub_notes_consent',[[],old]);assert.notEqual(saved.revision,old);
 await claim(hub);assert.equal(await call('authorize_thiepn_hub_notes',['summary',old]),null);

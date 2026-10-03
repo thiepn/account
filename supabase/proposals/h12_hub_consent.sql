@@ -67,7 +67,7 @@ create function public.authorize_thiepn_hub_notes(p_operation text, p_revision u
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_uid uuid := auth.uid(); v_claims jsonb := auth.jwt(); v_permissions text[]; v_exp numeric;
 begin
-  if v_uid is null or v_claims->>'aud' is distinct from 'thiepn-hub' or
+  if v_uid is null or v_claims->>'aud' is distinct from 'authenticated' or
      v_claims->>'role' is distinct from 'authenticated' or
      v_claims->>'is_anonymous'='true' or
      p_operation not in ('summary','continue','search') or p_operation is null then
