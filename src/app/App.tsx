@@ -1,3 +1,4 @@
+import { HubEntryPage } from "../pages/HubEntryPage";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuthState } from "../account/hooks";
 import { AccountShell } from "../components/layout/AccountShell";
@@ -13,6 +14,7 @@ function ProtectedAccount(){
   return <AccountShell/>;
 }
 export function App(){return <AppErrorBoundary><Routes>
+  <Route path="/hub/entry" element={<HubEntryPage/>}/>
   <Route path="/auth/sign-in" element={<SignInPage/>}/>
   <Route path="/auth/callback" element={<AuthCallbackPage/>}/>
   <Route path="/auth/error" element={<AuthErrorPage/>}/>
