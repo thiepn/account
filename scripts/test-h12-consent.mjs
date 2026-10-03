@@ -40,6 +40,18 @@ await claim({...hub,...patch});assert.equal(await call('authorize_thiepn_hub_not
 await claim();const old=saved.revision;saved=await call('set_thiepn_hub_notes_consent',[[],old]);assert.notEqual(saved.revision,old);
 await claim(hub);assert.equal(await call('authorize_thiepn_hub_notes',['summary',old]),null);
 await claim();saved=await call('set_thiepn_hub_notes_consent',[['notes.hub.summary.read'],saved.revision]);
+const beforeDisconnect=saved.revision;
+await db.exec('reset role');await db.query("update public.account_app_connections set status='disconnected' where user_id=$1",[A]);
+await claim();saved=await call('get_thiepn_hub_notes_consent');assert.deepEqual(saved.permissions,[]);assert.notEqual(saved.revision,beforeDisconnect);
+await db.exec('reset role');await db.query("update public.account_app_connections set status='connected' where user_id=$1",[A]);
+await claim(hub);assert.equal(await call('authorize_thiepn_hub_notes',['summary',beforeDisconnect]),null);
+await claim();saved=await call('set_thiepn_hub_notes_consent',[['notes.hub.summary.read'],saved.revision]);
+const beforeEntitlement=saved.revision;
+await db.exec('reset role');await db.query("update public.account_app_grants set status='denied' where user_id=$1",[A]);
+await claim();saved=await call('get_thiepn_hub_notes_consent');assert.deepEqual(saved.permissions,[]);assert.notEqual(saved.revision,beforeEntitlement);
+await db.exec('reset role');await db.query("update public.account_app_grants set status='granted' where user_id=$1",[A]);
+await claim(hub);assert.equal(await call('authorize_thiepn_hub_notes',['summary',beforeEntitlement]),null);
+await claim();saved=await call('set_thiepn_hub_notes_consent',[['notes.hub.summary.read'],saved.revision]);
 await db.exec('reset role');await db.query("update auth.users set banned_until=now()+interval '1 hour' where id=$1",[A]);
 await claim(hub);assert.equal(await call('authorize_thiepn_hub_notes',['summary',saved.revision]),null);
 await claim();await assert.rejects(()=>call('set_thiepn_hub_notes_consent',[['notes.hub.search.read'],saved.revision]));
