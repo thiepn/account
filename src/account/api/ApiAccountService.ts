@@ -3,6 +3,7 @@ import type { AccountService } from "../service";
 import type { AccountCapabilities, AccountError, AccountIdentity, AccountProfile, Overview } from "../types";
 import { getAccountOAuthOrigin, getAccountSupabaseClient } from "./supabase";
 import { consumeReturnTo, saveReturnTo } from "./returnTo";
+import {parseHubNotesConsent} from './hubConsent';
 
 const profileRowSchema=z.object({
   user_id:z.string().uuid(),
@@ -535,413 +536,71 @@ export function createApiAccountService():AccountService{
     },
     profile:{
       async getProfile(){return (await getIdentityAndProfile()).profile;},
-      async updateProfile(input){
-        const user=await getUser();
-        const {data,error}=await supabase.from("account_profiles").update({display_name:input.displayName.trim(),preferred_language:input.preferredLanguage,timezone:input.timezone}).eq("user_id",user.id).select("user_id,display_name,preferred_language,timezone,created_at,updated_at").single();
-        if(error)throw mapError(error,"PROFILE_WRITE_FAILED");
-        const parsed=profileRowSchema.safeParse(data);
-        if(!parsed.success)throw normalizedError("PROFILE_SCHEMA_INVALID","server",false);
-        return profileFromRow(parsed.data,null);
-      },
-    },
-    security:{
-      async getSummary(){
-        const factors=await supabase.auth.mfa.listFactors();
-        if(factors.error)throw mapError(factors.error,"MFA_LIST_FAILED");
-        const verified=[...factors.data.totp,...factors.data.phone].filter((factor)=>factor.status==="verified");
-        return {
-          attention:[],
-          authMethod:"Google" as const,
-          twoStepVerification:verified.length?"enabled" as const:"disabled" as const,
-          recentActivity:[],
-        };
-      },
-      async listActivity(){return [];},
-      async getEvent(){return null;},
-    },
+      async updatePr…8850 tokens truncated…egistry().find((app)=>app.id===appId)??{id:appId,slug:appId,name:"Unknown THIEPN app",description:"This connection refers to an app that is no longer present in the current registry.",status:"disabled",supportedCapabilities:caps({backup:false,cloudSync:false,export:false,cloudDataDeletion:false}),availablePermissions:[]};
+  const connectedSummaries=():ConnectedAppSummary[]=>state.connections.filter((c)=>c.status!=="disconnected"&&c.status!=="suspended").map((c)=>{const app=appOrFallback(c.appId);return {id:app.id,name:app.name,status:c.status==="limited"?"limited":c.status==="error"?"error":"connected",lastUsedAt:c.lastUsedAt,permissionCount:c.grantedPermissions.filter((p)=>p.status==="granted").length};});
+  const security=():SecuritySummary=>({attention:scenario()==="security-warning"?["A new sign-in needs your review."]:scenario()==="permission-request"?["TMS60 is requesting additional account access."]:[],authMethod:"Google",twoStepVerification:"unavailable",recentActivity:state.securityEvents.slice(0,5)});
+  const data=():DataSummary=>{const attention=state.appData.filter((item)=>["delayed","conflict","error"].includes(item.sync.status)).length;return {totalStorageBytes:state.appData.reduce((sum,item)=>sum+item.storageBytes,0),appCount:state.appData.length,syncStatus:attention?"attention":"healthy",attentionCount:attention,lastBackupAt:scenario()==="new-account"?undefined:iso(43_200_000),backupStatus:scenario()==="new-account"?"none":scenario()==="backup-failed"?"failed":"verified"};};
+  const capabilities:AccountCapabilities={profileRead:true,profileWrite:scenario()!=="partial-backend",securityRead:true,securityActivityRead:true,devicesRead:true,sessionRevocation:"individual",deviceIdentity:"stable",appsRead:true,dataRead:scenario()!=="partial-backend",privacyRead:true};
+  const mutationGuard=()=>{if(scenario()==="offline")throw accountError("OFFLINE","This action is unavailable while offline.");};
+  const addEvent=(event:Omit<SecurityEvent,"id"|"occurredAt">)=>{state={...state,securityEvents:[{...event,id:`evt-${Date.now()}`,occurredAt:new Date().toISOString()},...state.securityEvents]};};
+  const getDetail=(appId:string):ConnectedAppDetail|null=>{const connection=state.connections.find((c)=>c.appId===appId);if(!connection)return null;return {app:appOrFallback(appId),connection};};
+  const updatePermission=(appId:string,permissionId:string,status:GrantedPermission["status"])=>{
+    const detail=getDetail(appId);if(!detail)throw accountError("CONNECTION_NOT_FOUND","This app is not connected.","conflict",false);
+    if(detail.connection.status==="disconnected")throw accountError("CONNECTION_NOT_FOUND","This app is disconnected.","conflict",false);
+    const definition=detail.app.availablePermissions.find((p)=>p.id===permissionId);
+    if(!definition)throw accountError("PERMISSION_NOT_FOUND","This permission is unavailable.","validation",false);
+    if(status==="denied"&&(definition.required||!definition.mutableByUser))throw accountError("PERMISSION_REQUIRED","Required permissions cannot be removed independently.","conflict",false);
+    state={...state,connections:state.connections.map((connection)=>connection.appId===appId?{...connection,grantedPermissions:connection.grantedPermissions.map((grant)=>grant.permissionId===permissionId?{...grant,status,updatedAt:new Date().toISOString()}:grant),status:connection.status==="limited"&&status==="granted"?"connected":connection.status}:connection)};
+    addEvent({type:status==="granted"?"APP_PERMISSION_GRANTED":"APP_PERMISSION_REVOKED",category:"apps",severity:"info",title:`${definition.name} ${status==="granted"?"allowed":"revoked"}`,description:`${detail.app.name} account access changed.`});persist();
+  };
+
+  const backupService=createMockBackupService({
+    scenario:scenario(),
+    getAppData:()=>state.appData,
+    setAppData:(items)=>{state={...state,appData:items};persist();},
+    addSecurityEvent:(title,description,type)=>{addEvent({type,category:"account",severity:"info",title,description});persist();},
+  });
+
+  const privacyService=createMockPrivacyService({
+    scenario:scenario(),
+    getProfile:()=>state.profile,
+    getApps:()=>connectedSummaries(),
+    getAppData:()=>state.appData,
+    setAppData:(items)=>{state={...state,appData:items};persist();},
+    getBackupCount:async()=>(await backupService.listBackups()).length,
+    getAccountStatus:()=>state.accountStatus,
+    setAccountStatus:(accountStatus)=>{state={...state,accountStatus};persist();},
+    addSecurityEvent:(title,description,type)=>{addEvent({type,category:"account",severity:"info",title,description});persist();},
+  });
+
+  return {
+    auth:{async getState(){await delay(120);return state.auth;},async signIn(returnTo){await delay(300);state={...state,auth:"signed-in"};persist();if(returnTo)sessionStorage.setItem("thiepn.account.returnTo",returnTo);return {redirecting:false};},async completeCallback(){return sessionStorage.getItem("thiepn.account.returnTo")??"/";},async isRecentlyAuthenticated(){return true;},async reauthenticate(){return {redirecting:false};},async signOut(){await delay(220);state={...state,auth:"signed-out"};persist();},subscribe(){return ()=>{};}},
+    profile:{async getProfile(){await delay();return {...state.profile};},async updateProfile(input){mutationGuard();await delay(420);state={...state,profile:{...state.profile,displayName:input.displayName.trim(),preferredLanguage:input.preferredLanguage,timezone:input.timezone}};addEvent({type:"PROFILE_UPDATED",category:"account",severity:"info",title:"Profile updated",description:"Your THIEPN Account profile was updated."});persist();return {...state.profile};}},
+    security:{async getSummary(){await delay();return security();},async listActivity(){await delay();return [...state.securityEvents];},async getEvent(id){await delay();return state.securityEvents.find((event)=>event.id===id)??null;}},
     devices:{
-      async listSessions(){
-        const sessions=await listRealSessions(supabase);
-        return sessions.filter((session)=>session.status==="active").map(({environment:_,...session})=>session);
-      },
-      async listDevices(){
-        const sessions=await listRealSessions(supabase);
-        return sessions.filter((session)=>session.status==="active").map((session)=>({
-          id:session.deviceId,
-          label:session.environment.label,
-          platform:session.environment.platform,
-          current:session.current,
-          firstSeenAt:session.createdAt,
-          lastActivityAt:session.lastActivityAt,
-          sessions:[{
-            id:session.id,
-            deviceId:session.deviceId,
-            createdAt:session.createdAt,
-            lastActivityAt:session.lastActivityAt,
-            authMethod:session.authMethod,
-            clientName:session.clientName,
-            current:session.current,
-            status:session.status,
-          }],
-        }));
-      },
-      async getDevice(id){
-        const devices=await service.devices.listDevices();
-        return devices.find((device)=>device.id===id)??null;
-      },
-      async revokeSession(){return unsupported();},
-      async revokeDevice(){return unsupported();},
-      async revokeOtherSessions(){
-        const {error}=await supabase.auth.signOut({scope:"others"});
-        if(error)throw mapError(error,"REVOKE_OTHER_SESSIONS_FAILED");
-      },
+      async listDevices(){await delay();return devices();},async getDevice(id){await delay();return devices().find((device)=>device.id===id)??null;},async listSessions(){await delay();return activeSessions();},
+      async revokeSession(id){mutationGuard();await delay(520);const target=state.sessions.find((s)=>s.id===id);if(!target||target.status!=="active")return;if(target.current)throw accountError("CURRENT_SESSION","Use Sign out for the current session.","conflict",false);state={...state,sessions:state.sessions.map((s)=>s.id===id?{...s,status:"revoked" as const}:s)};addEvent({type:"SESSION_REVOKED",category:"security",severity:"info",title:"Session signed out",description:`${target.clientName} was signed out.`,deviceId:target.deviceId,sessionId:target.id});persist();},
+      async revokeDevice(id){mutationGuard();await delay(620);const target=state.devices.find((d)=>d.id===id);if(!target)return;if(target.current)throw accountError("CURRENT_DEVICE","Use Sign out for the current device.","conflict",false);const ids=new Set(state.sessions.filter((s)=>s.deviceId===id&&s.status==="active").map((s)=>s.id));state={...state,sessions:state.sessions.map((s)=>ids.has(s.id)?{...s,status:"revoked" as const}:s)};addEvent({type:"DEVICE_SESSIONS_REVOKED",category:"security",severity:"info",title:"Device signed out",description:`${target.label} no longer has active Account sessions.`,deviceId:id});persist();},
+      async revokeOtherSessions(){mutationGuard();await delay(720);const remote=activeSessions().filter((s)=>!s.current);if(!remote.length)return;const ids=new Set(remote.map((s)=>s.id));state={...state,sessions:state.sessions.map((s)=>ids.has(s.id)?{...s,status:"revoked" as const}:s)};addEvent({type:"OTHER_SESSIONS_REVOKED",category:"security",severity:"info",title:"Other sessions signed out",description:`${remote.length} other active Account session${remote.length===1?" was":"s were"} signed out.`});persist();},
     },
+    hub:{async readConsent(){throw accountError('HUB_UNAVAILABLE','Hub sharing requires the Account backend.','unsupported',false);},async saveConsent(){throw accountError('HUB_UNAVAILABLE','Hub sharing requires the Account backend.','unsupported',false);}},
     apps:{
-      async listApps(){
-        const details=await loadRealApps(supabase);
-        return details
-          .filter(({connection})=>!["disconnected","suspended"].includes(connection.status))
-          .map(({app,connection})=>({
-            id:app.id,
-            name:app.name,
-            status:connection.status==="limited"?"limited" as const:connection.status==="error"?"error" as const:"connected" as const,
-            lastUsedAt:connection.lastUsedAt,
-            permissionCount:connection.grantedPermissions.filter((permission)=>permission.status==="granted").length,
-          }));
-      },
-      async getApp(appId){
-        const details=await loadRealApps(supabase);
-        const detail=details.find(({app})=>app.id===appId);
-        return detail?{app:detail.app,connection:detail.connection}:null;
-      },
-      async grantPermission(appId,permissionId){
-        const {error}=await supabase.rpc("set_thiepn_app_permission",{p_app_slug:appId,p_permission_id:permissionId,p_granted:true});
-        if(error)throw mapRpcError(error,"PERMISSION_GRANT_FAILED");
-        const detail=await service.apps.getApp(appId);
-        if(!detail)throw normalizedError("CONNECTION_NOT_FOUND","conflict",false);
-        return detail;
-      },
-      async revokePermission(appId,permissionId){
-        const {error}=await supabase.rpc("set_thiepn_app_permission",{p_app_slug:appId,p_permission_id:permissionId,p_granted:false});
-        if(error)throw mapRpcError(error,"PERMISSION_REVOKE_FAILED");
-        const detail=await service.apps.getApp(appId);
-        if(!detail)throw normalizedError("CONNECTION_NOT_FOUND","conflict",false);
-        return detail;
-      },
-      async disconnect(appId){
-        const {error}=await supabase.rpc("disconnect_thiepn_app",{p_app_slug:appId});
-        if(error)throw mapRpcError(error,"APP_DISCONNECT_FAILED");
-      },
+      async listApps(){await delay();return connectedSummaries();},
+      async getApp(appId){await delay();return getDetail(appId);},
+      async grantPermission(appId,permissionId){mutationGuard();await delay(480);updatePermission(appId,permissionId,"granted");return getDetail(appId)!;},
+      async revokePermission(appId,permissionId){mutationGuard();await delay(480);updatePermission(appId,permissionId,"denied");return getDetail(appId)!;},
+      async disconnect(appId){mutationGuard();await delay(620);const detail=getDetail(appId);if(!detail||detail.connection.status==="disconnected")return;state={...state,connections:state.connections.map((c)=>c.appId===appId?{...c,status:"disconnected" as const,grantedPermissions:c.grantedPermissions.map((g)=>({...g,status:"denied" as const,updatedAt:new Date().toISOString()}))}:c),appData:state.appData.map((item)=>item.appId===appId?{...item,namespaceStatus:"retained" as const,configuration:{...item.configuration,enabled:false},sync:{...item.sync,status:"unavailable" as const,error:undefined}}:item)};addEvent({type:"APP_DISCONNECTED",category:"apps",severity:"info",title:`${detail.app.name} disconnected`,description:"The app no longer has THIEPN Account access. Existing cloud data is retained."});persist();},
     },
     data:{
-      async getSummary(){
-        const items=await loadRealDataInventory(supabase);
-        const attention=items.filter((item)=>["delayed","conflict","error"].includes(item.sync.status)).length;
-        const anyObservableSync=items.some((item)=>item.sync.status!=="unavailable");
-        return {
-          totalStorageBytes:items.reduce((sum,item)=>sum+item.storageBytes,0),
-          storageApproximate:true,
-          appCount:items.length,
-          syncStatus:attention?"attention" as const:anyObservableSync?"healthy" as const:"unavailable" as const,
-          attentionCount:attention,
-          backupStatus:"none" as const,
-        };
-      },
-      async listAppData(){return loadRealDataInventory(supabase);},
-      async getAppData(appId){
-        const items=await loadRealDataInventory(supabase);
-        return items.find((item)=>item.appId===appId)??null;
-      },
-      async retrySync(){return unsupported();},
-      async updateSyncConfiguration(){return unsupported();},
+      async getSummary(){await delay();return data();},
+      async listAppData(){await delay();return [...state.appData].sort((a,b)=>{const rank=(value:string)=>value==="conflict"?0:value==="error"?1:value==="delayed"?2:value==="pending"||value==="syncing"?3:value==="up-to-date"?4:5;return rank(a.sync.status)-rank(b.sync.status);});},
+      async getAppData(appId){await delay();return state.appData.find((item)=>item.appId===appId)??null;},
+      async retrySync(appId){mutationGuard();const item=state.appData.find((entry)=>entry.appId===appId);if(!item)throw accountError("DATA_NOT_FOUND","No cloud data exists for this app.","conflict",false);if(!item.sync.error?.retryable&&item.sync.status==="conflict")throw accountError("CONFLICT_REQUIRES_APP","This conflict must be resolved inside the app.","conflict",false);state={...state,appData:state.appData.map((entry)=>entry.appId===appId?{...entry,sync:{...entry.sync,status:"syncing" as const,lastAttemptAt:new Date().toISOString(),error:undefined}}:entry)};persist();await delay(650);const now=new Date().toISOString();state={...state,appData:state.appData.map((entry)=>entry.appId===appId?{...entry,sync:{...entry.sync,status:"up-to-date" as const,lastSuccessfulSyncAt:now,lastAttemptAt:now,pendingChanges:0,error:undefined}}:entry)};persist();return state.appData.find((entry)=>entry.appId===appId)!;},
+      async updateSyncConfiguration(appId,enabled){mutationGuard();await delay(480);const item=state.appData.find((entry)=>entry.appId===appId);if(!item)throw accountError("DATA_NOT_FOUND","No cloud data exists for this app.","conflict",false);if(!item.configuration.userControllable)throw accountError("SYNC_NOT_USER_CONTROLLABLE","This app manages cloud synchronization automatically.","unsupported",false);state={...state,appData:state.appData.map((entry)=>entry.appId===appId?{...entry,configuration:{...entry.configuration,enabled},sync:{...entry.sync,status:enabled?"pending" as const:"disabled" as const,pendingChanges:enabled?entry.sync.pendingChanges??0:undefined,error:undefined}}:entry)};addEvent({type:enabled?"APP_SYNC_ENABLED":"APP_SYNC_DISABLED",category:"apps",severity:"info",title:`Cloud sync ${enabled?"enabled":"disabled"}`,description:`${item.appName} cloud sync was ${enabled?"enabled":"disabled"}. Existing cloud data remains stored.`});persist();return state.appData.find((entry)=>entry.appId===appId)!;},
     },
-    backup:{
-      async getSummary(){
-        const [backups,policy]=await Promise.all([loadRealBackups(supabase),getRealBackupPolicy(supabase)]);
-        return {lastSuccessful:backups.find((item)=>item.status==="verified"),policy};
-      },
-      async listBackups(){return loadRealBackups(supabase);},
-      async getBackup(id){
-        const backups=await loadRealBackups(supabase);
-        return backups.find((item)=>item.id===id)??null;
-      },
-      async createBackup(){
-        const policy=await getRealBackupPolicy(supabase);
-        if(!policy.includedApps.length)throw normalizedError("NO_BACKUP_APPS_INCLUDED","conflict",false);
-        const startedAt=new Date().toISOString();
-        const {data,error}=await supabase.rpc("create_thiepn_account_backup");
-        if(error)throw mapRpcError(error,"BACKUP_CREATE_FAILED");
-        const parsed=z.object({created:z.array(z.string())}).safeParse(data);
-        if(!parsed.success)throw normalizedError("BACKUP_CREATE_SCHEMA_INVALID","server",false);
-        if(!parsed.data.created.length)throw normalizedError("NO_BACKUP_DATA_AVAILABLE","conflict",false);
-        return {
-          id:`backup-op:${Date.now()}`,
-          status:"completed" as const,
-          startedAt,
-          completedAt:new Date().toISOString(),
-          backupId:parsed.data.created[0],
-        };
-      },
-      async getPolicy(){return getRealBackupPolicy(supabase);},
-      async updatePolicy(){return unsupported();},
-      async planRestore(backupId,selectedApps){
-        const backup=await service.backup.getBackup(backupId);
-        if(!backup)throw normalizedError("BACKUP_NOT_FOUND","conflict",false);
-        const app=backup.apps[0];
-        const selected=app&&selectedApps.includes(app.appId)?[app.appId]:[];
-        const blockers:string[]=[];
-        const warnings:string[]=[];
-        if(backup.status!=="verified")blockers.push("This backup is not verified.");
-        if(!selected.length)blockers.push("Select the app in this backup to continue.");
-        if(app?.appId==="diet")blockers.push("Diet restore requires the operator-reviewed recovery runbook and is not executable from the Account browser.");
-        if(app?.appId==="tms60"){
-          const live=await service.data.getAppData("tms60");
-          if(live?.revision!==undefined&&live.revision>app.sourceRevision)warnings.push("Current TMS60 cloud data is newer than this backup.");
-        }
-        return {
-          id:`real:${encodeURIComponent(backup.id)}`,
-          backupId:backup.id,
-          selectedApps:selected,
-          blockers,
-          warnings,
-          safetySnapshotRequired:app?.appId==="tms60",
-          requiresReauthentication:false,
-          expiresAt:new Date(Date.now()+10*60_000).toISOString(),
-        };
-      },
-      async startRestore(planId){
-        if(!planId.startsWith("real:"))throw normalizedError("RESTORE_PLAN_INVALID","validation",false);
-        const backupId=decodeURIComponent(planId.slice(5));
-        if(!backupId.startsWith("tms60:"))throw normalizedError("RESTORE_NOT_BROWSER_EXECUTABLE","unsupported",false);
-        const rawId=backupId.slice("tms60:".length);
-        const idCheck=z.string().uuid().safeParse(rawId);
-        if(!idCheck.success)throw normalizedError("BACKUP_ID_INVALID","validation",false);
-        const {data,error}=await supabase.rpc("restore_thiepn_tms60_backup",{p_backup_id:idCheck.data});
-        if(error)throw mapRpcError(error,"RESTORE_FAILED");
-        const parsed=z.object({
-          operationId:z.string().uuid(),
-          status:z.literal("completed"),
-          safetyBackupRef:z.string().nullable(),
-          newRevision:numericBigint,
-          translationId:z.string(),
-        }).safeParse(data);
-        if(!parsed.success)throw normalizedError("RESTORE_RESULT_SCHEMA_INVALID","server",false);
-        return {
-          id:parsed.data.operationId,
-          backupId,
-          selectedApps:["tms60"],
-          status:"completed" as const,
-          startedAt:new Date().toISOString(),
-          completedAt:new Date().toISOString(),
-          safetyBackupId:parsed.data.safetyBackupRef??undefined,
-          appResults:[{appId:"tms60",status:"restored" as const,verified:true,newGeneration:parsed.data.newRevision}],
-        };
-      },
-      async getRestoreOperation(id){
-        const idCheck=z.string().uuid().safeParse(id);
-        if(!idCheck.success)return null;
-        const {data,error}=await supabase
-          .from("account_restore_operations")
-          .select("id,backup_ref,app_slug,status,started_at,completed_at,safety_backup_ref,result,error_code")
-          .eq("id",idCheck.data)
-          .maybeSingle();
-        if(error)throw mapError(error,"RESTORE_OPERATION_READ_FAILED");
-        if(!data)return null;
-        const parsed=restoreOperationRowSchema.safeParse(data);
-        if(!parsed.success)throw normalizedError("RESTORE_OPERATION_SCHEMA_INVALID","server",false);
-        const result=parsed.data.result;
-        const newRevision=typeof result?.["newRevision"]==="number"?result["newRevision"]:typeof result?.["newRevision"]==="string"?Number(result["newRevision"]):undefined;
-        return {
-          id:parsed.data.id,
-          backupId:parsed.data.backup_ref,
-          selectedApps:[parsed.data.app_slug],
-          status:parsed.data.status==="completed"?"completed" as const:parsed.data.status==="failed"?"failed" as const:"restoring" as const,
-          startedAt:parsed.data.started_at,
-          completedAt:parsed.data.completed_at??undefined,
-          safetyBackupId:parsed.data.safety_backup_ref??undefined,
-          appResults:parsed.data.status==="completed"?[{
-            appId:parsed.data.app_slug,
-            status:"restored" as const,
-            verified:true,
-            newGeneration:newRevision,
-          }]:parsed.data.status==="failed"?[{
-            appId:parsed.data.app_slug,
-            status:"failed" as const,
-            verified:false,
-            errorCode:parsed.data.error_code??"RESTORE_FAILED",
-          }]:undefined,
-        };
-      },
-    },
-    privacy:{
-      async getSummary(){
-        const [exports,appData,accountDeletion]=await Promise.all([
-          listRealExports(supabase),
-          service.data.listAppData(),
-          getRealAccountDeletion(supabase),
-        ]);
-        return {
-          exportCount:exports.length,
-          readyExportCount:exports.filter((item)=>item.status==="ready").length,
-          storedAppCount:appData.length,
-          retainedAppCount:appData.filter((item)=>item.namespaceStatus==="retained").length,
-          accountStatus:accountDeletion&&["pending","deleting"].includes(accountDeletion.status)?"deletion-pending" as const:"active" as const,
-          accountDeletion:accountDeletion??undefined,
-        };
-      },
-      async requestExport(appIds){
-        const {data,error}=await supabase.rpc("request_thiepn_account_export",{p_app_slugs:appIds?.length?appIds:null});
-        if(error)throw mapRpcError(error,"EXPORT_REQUEST_FAILED");
-        const id=z.string().uuid().safeParse(data);
-        if(!id.success)throw normalizedError("EXPORT_REQUEST_SCHEMA_INVALID","server",false);
-        const item=await service.privacy.getExport(id.data);
-        if(!item)throw normalizedError("EXPORT_NOT_FOUND","server",false);
-        return item;
-      },
-      async listExports(){return listRealExports(supabase);},
-      async getExport(id){
-        const items=await listRealExports(supabase);
-        return items.find((item)=>item.id===id)??null;
-      },
-      async getExportContent(id){
-        const idCheck=z.string().uuid().safeParse(id);
-        if(!idCheck.success)throw normalizedError("EXPORT_ID_INVALID","validation",false);
-        const {data,error}=await supabase.rpc("get_thiepn_account_export_payload",{p_export_id:idCheck.data});
-        if(error)throw mapRpcError(error,"EXPORT_NOT_AVAILABLE");
-        return JSON.stringify(data,null,2);
-      },
-      async planAppDataDeletion(appId){
-        const {data,error}=await supabase.rpc("plan_thiepn_app_data_deletion",{p_app_slug:appId});
-        if(error)throw mapRpcError(error,"APP_DELETION_PLAN_FAILED");
-        const parsed=z.object({
-          id:z.string().uuid(),
-          appId:z.string(),
-          storageBytes:numericBigint,
-          blockers:z.array(z.string()),
-          warnings:z.array(z.string()),
-          backupImpact:z.string(),
-          requiresReauthentication:z.boolean(),
-          expiresAt:z.string(),
-        }).safeParse(data);
-        if(!parsed.success)throw normalizedError("APP_DELETION_PLAN_SCHEMA_INVALID","server",false);
-        const detail=await service.apps.getApp(appId);
-        const dataDetail=await service.data.getAppData(appId);
-        return {
-          id:parsed.data.id,
-          appId:parsed.data.appId,
-          appName:detail?.app.name??dataDetail?.appName??appId,
-          storageBytes:parsed.data.storageBytes,
-          blockers:parsed.data.blockers,
-          warnings:parsed.data.warnings,
-          backupImpact:parsed.data.backupImpact,
-          requiresReauthentication:parsed.data.requiresReauthentication,
-          expiresAt:parsed.data.expiresAt,
-        };
-      },
-      async startAppDataDeletion(planId){
-        const idCheck=z.string().uuid().safeParse(planId);
-        if(!idCheck.success)throw normalizedError("DELETION_PLAN_INVALID","validation",false);
-        const {data,error}=await supabase.rpc("execute_thiepn_app_data_deletion",{p_plan_id:idCheck.data});
-        if(error)throw mapRpcError(error,"APP_DATA_DELETION_FAILED");
-        const parsed=z.object({
-          id:z.string().uuid(),
-          appId:z.string(),
-          status:z.literal("completed"),
-          completedAt:z.string(),
-        }).safeParse(data);
-        if(!parsed.success)throw normalizedError("APP_DATA_DELETION_SCHEMA_INVALID","server",false);
-        return {
-          id:parsed.data.id,
-          appId:parsed.data.appId,
-          status:"completed" as const,
-          startedAt:parsed.data.completedAt,
-          completedAt:parsed.data.completedAt,
-        };
-      },
-      async planAccountDeletion(){
-        const {data,error}=await supabase.rpc("plan_thiepn_account_deletion");
-        if(error)throw mapRpcError(error,"ACCOUNT_DELETION_PLAN_FAILED");
-        const parsed=z.object({
-          id:z.string().uuid(),
-          appCount:z.number(),
-          namespaceCount:z.number(),
-          backupCount:z.number(),
-          blockers:z.array(z.string()),
-          warnings:z.array(z.string()),
-          gracePeriodDays:z.number(),
-          requiresReauthentication:z.boolean(),
-          expiresAt:z.string(),
-        }).safeParse(data);
-        if(!parsed.success)throw normalizedError("ACCOUNT_DELETION_PLAN_SCHEMA_INVALID","server",false);
-        return parsed.data;
-      },
-      async requestAccountDeletion(planId,confirmation){
-        const idCheck=z.string().uuid().safeParse(planId);
-        if(!idCheck.success)throw normalizedError("DELETION_PLAN_INVALID","validation",false);
-        const {data,error}=await supabase.rpc("request_thiepn_account_deletion",{p_plan_id:idCheck.data,p_confirmation:confirmation});
-        if(error)throw mapRpcError(error,"ACCOUNT_DELETION_REQUEST_FAILED");
-        const parsed=z.object({
-          id:z.string().uuid(),
-          status:z.enum(["pending","deleting"]),
-          requestedAt:z.string(),
-          cancellableUntil:z.string().nullable(),
-          scheduledDeletionAt:z.string().nullable(),
-        }).safeParse(data);
-        if(!parsed.success)throw normalizedError("ACCOUNT_DELETION_REQUEST_SCHEMA_INVALID","server",false);
-        return {
-          id:parsed.data.id,
-          status:parsed.data.status,
-          requestedAt:parsed.data.requestedAt,
-          cancellableUntil:parsed.data.cancellableUntil??undefined,
-          scheduledDeletionAt:parsed.data.scheduledDeletionAt??undefined,
-        };
-      },
-      async getAccountDeletion(){return getRealAccountDeletion(supabase);},
-      async cancelAccountDeletion(){
-        const {data,error}=await supabase.rpc("cancel_thiepn_account_deletion");
-        if(error)throw mapRpcError(error,"ACCOUNT_DELETION_CANCEL_FAILED");
-        const parsed=z.object({
-          id:z.string().uuid(),
-          status:z.literal("cancelled"),
-          requestedAt:z.string(),
-          cancellableUntil:z.string().nullable(),
-          scheduledDeletionAt:z.string().nullable(),
-          completedAt:z.string().nullable(),
-        }).safeParse(data);
-        if(!parsed.success)throw normalizedError("ACCOUNT_DELETION_CANCEL_SCHEMA_INVALID","server",false);
-        return {
-          id:parsed.data.id,
-          status:"cancelled" as const,
-          requestedAt:parsed.data.requestedAt,
-          cancellableUntil:parsed.data.cancellableUntil??undefined,
-          scheduledDeletionAt:parsed.data.scheduledDeletionAt??undefined,
-          completedAt:parsed.data.completedAt??undefined,
-        };
-      },
-    },
-    capabilities:{async getCapabilities(){return capabilities;}},
-    async getOverview():Promise<Overview>{
-      const {identity}=await getIdentityAndProfile();
-      const [security,devices,apps,data,backup]=await Promise.all([
-        service.security.getSummary(),
-        service.devices.listDevices(),
-        service.apps.listApps(),
-        service.data.getSummary(),
-        service.backup.getSummary(),
-      ]);
-      return {
-        identity,
-        capabilities,
-        security,
-        devices,
-        apps,
-        data:{
-          ...data,
-          lastBackupAt:backup.lastSuccessful?.createdAt,
-          backupStatus:backup.lastSuccessful?"verified":data.backupStatus,
-        },
-      };
-    },
+    backup:backupService,
+    privacy:privacyService,
+    capabilities:{async getCapabilities(){await delay(120);return capabilities;}},
+    async getOverview(){await delay(260);return {identity:{accountId:"acct_mock_0001",displayName:state.profile.displayName,primaryEmail:"jonathan@example.com",emailVerified:true,provider:"google",createdAt:"2026-06-27T08:36:21.000Z",status:state.accountStatus},security:security(),devices:devices(),apps:connectedSummaries(),data:data(),capabilities};},
   };
-  return service;
 }

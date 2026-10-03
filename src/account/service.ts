@@ -1,5 +1,6 @@
 import type { AccountCapabilities, AccountProfile, AppCloudDataDetail, AppCloudDataSummary, AuthState, AccountDeletionPlan, AccountDeletionRequest, AppDataDeletionOperation, AppDataDeletionPlan, BackupOperation, BackupPolicy, BackupSnapshot, BackupSummary, ConnectedAppDetail, ConnectedAppSummary, DataSummary, DeviceSummary, ExportRequest, Overview, PrivacySummary, RestoreOperation, RestorePlan, SecurityEvent, SecuritySummary, SessionSummary } from "./types";
 
+import type {HubNotesConsent,HubNotePurpose} from './api/hubConsent';
 export interface AuthService {
   getState():Promise<AuthState>;
   signIn(returnTo?:string):Promise<{redirecting:boolean}>;
@@ -57,6 +58,7 @@ export interface PrivacyService {
 export interface CapabilityService { getCapabilities():Promise<AccountCapabilities>; }
 
 export interface AccountService {
+  hub:{readConsent():Promise<HubNotesConsent>;saveConsent(permissions:HubNotePurpose[],revision:string|null):Promise<HubNotesConsent>};
   auth:AuthService; profile:ProfileService; security:SecurityService; devices:DeviceService;
   apps:AppsService; data:DataService; backup:BackupService; privacy:PrivacyService; capabilities:CapabilityService;
   getOverview():Promise<Overview>;

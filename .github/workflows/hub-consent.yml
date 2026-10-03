@@ -1,0 +1,21 @@
+name: Hub consent PostgreSQL
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  consent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix "$RUNNER_TEMP/h12-pg" --no-audit --no-fund @electric-sql/pglite@0.5.8
+      - name: Exercise the actual candidate SQL with fictional owners and clients
+        env:
+          H12_PGLITE_PATH: ${{ runner.temp }}/h12-pg/node_modules/@electric-sql/pglite/dist/index.js
+        run: node scripts/test-h12-consent.mjs
