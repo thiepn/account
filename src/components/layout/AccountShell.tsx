@@ -82,6 +82,7 @@ export function AccountShell(){
         <Brand/>
         <Navigation/>
         <div className="sidebar-bottom">
+          <a className="nav-secondary" href="https://thiepn.dev/home/" referrerPolicy="no-referrer">Return to Hub</a>
           <div className="sidebar-profile">
             <div className="sidebar-avatar" aria-hidden="true">{profileInitial}</div>
             <div className="sidebar-profile-copy"><strong>{profileName}</strong><span>{profileEmail||"Personal account"}</span></div>
@@ -102,6 +103,7 @@ export function AccountShell(){
         <div className="drawer-brand"><Brand compact/><button ref={closeRef} className="icon-button" onClick={()=>setDrawerOpen(false)} aria-label="Close navigation"><X size={19}/></button></div>
         <Navigation onNavigate={()=>setDrawerOpen(false)}/>
         <div className="sidebar-bottom">
+          <a className="nav-secondary" href="https://thiepn.dev/home/" referrerPolicy="no-referrer">Return to Hub</a>
           <div className="sidebar-profile">
             <div className="sidebar-avatar" aria-hidden="true">{profileInitial}</div>
             <div className="sidebar-profile-copy"><strong>{profileName}</strong><span>{profileEmail||"Personal account"}</span></div>

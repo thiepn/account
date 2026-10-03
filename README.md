@@ -94,3 +94,5 @@ See:
 - `docs/ACCOUNT_API_CONTRACT.md`
 - `docs/SECURITY_INVARIANTS.md`
 - `docs/DATA_LIFECYCLE.md`
+
+Hub tokenless entry and return contract: [docs/HUB_ENTRY.md](docs/HUB_ENTRY.md).
