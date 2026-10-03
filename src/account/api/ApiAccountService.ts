@@ -1,3 +1,4 @@
+import {parseHubTmsConsent} from './hubTmsConsent';
 import { z } from "zod";
 import type { AccountService } from "../service";
 import type { AccountCapabilities, AccountError, AccountIdentity, AccountProfile, Overview } from "../types";
@@ -597,6 +598,10 @@ export function createApiAccountService():AccountService{
         const {error}=await supabase.auth.signOut({scope:"others"});
         if(error)throw mapError(error,"REVOKE_OTHER_SESSIONS_FAILED");
       },
+    },
+    hubTms:{
+      async readConsent(translation){const {data,error}=await supabase.rpc('get_thiepn_hub_tms60_consent',{p_translation:translation});if(error)throw mapError(error,'HUB_CONSENT_UNAVAILABLE');return parseHubTmsConsent(data);},
+      async saveConsent(translation,permissions,revision){const {data,error}=await supabase.rpc('set_thiepn_hub_tms60_consent',{p_translation:translation,p_permissions:permissions,p_expected_revision:revision});if(error)throw mapError(error,'HUB_CONSENT_SAVE_FAILED');return parseHubTmsConsent(data);},
     },
     hub:{
       async readConsent(){const {data,error}=await supabase.rpc('get_thiepn_hub_notes_consent');if(error)throw mapError(error,'HUB_CONSENT_UNAVAILABLE');return parseHubNotesConsent(data);},

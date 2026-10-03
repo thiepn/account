@@ -1,3 +1,4 @@
+import {HubTmsConnectionsPage} from '../pages/HubTmsConnectionsPage';
 import { HubEntryPage } from "../pages/HubEntryPage";
 import { HubConnectionsPage } from "../pages/HubConnectionsPage";
 import {HUB_SHARING_ENABLED,HUB_OAUTH_ENABLED} from './features';
@@ -23,6 +24,7 @@ export function App(){return <AppErrorBoundary><Routes>
   <Route path="/auth/error" element={<AuthErrorPage/>}/>
   <Route element={<ProtectedAccount/>}>
     <Route path="/oauth/consent" element={HUB_OAUTH_ENABLED?<HubOAuthPage/>:<p>Hub authorization is not available yet.</p>}/>
+    <Route path="/hub/tms60" element={import.meta.env.VITE_HUB_TMS60_ENABLED==='staged-v1'?<HubTmsConnectionsPage/>:<p>TMS60 sharing is not available yet.</p>}/>
     <Route path="/hub/connections" element={HUB_SHARING_ENABLED?<HubConnectionsPage/>:<p>Hub sharing is not available yet.</p>}/>
     <Route path="/" element={<OverviewPage/>}/>
     <Route path="/profile" element={<ProfilePage/>}/>

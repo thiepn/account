@@ -7,6 +7,7 @@ const domain=new Proxy({}, {get:()=>fail});
 
 export const unavailableAccountService:AccountService={
   hubOAuth:domain as AccountService['hubOAuth'],
+  hubTms:domain as AccountService["hubTms"],
   hub:domain as AccountService['hub'],
   auth:{async getState(){return "signed-out";},signIn:fail,completeCallback:fail,isRecentlyAuthenticated:fail,reauthenticate:fail,async signOut(){},subscribe(){return ()=>{};}},
   profile:domain as AccountService["profile"],

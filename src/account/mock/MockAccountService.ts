@@ -115,6 +115,7 @@ export function createMockAccountService():AccountService{
       async revokeOtherSessions(){mutationGuard();await delay(720);const remote=activeSessions().filter((s)=>!s.current);if(!remote.length)return;const ids=new Set(remote.map((s)=>s.id));state={...state,sessions:state.sessions.map((s)=>ids.has(s.id)?{...s,status:"revoked" as const}:s)};addEvent({type:"OTHER_SESSIONS_REVOKED",category:"security",severity:"info",title:"Other sessions signed out",description:`${remote.length} other active Account session${remote.length===1?" was":"s were"} signed out.`});persist();},
     },
     hubOAuth:{async details(){throw accountError('HUB_UNAVAILABLE','Hub authorization requires the Account backend.','unsupported',false);},async decide(){throw accountError('HUB_UNAVAILABLE','Hub authorization requires the Account backend.','unsupported',false);}},
+    hubTms:{async readConsent(){throw accountError("HUB_UNAVAILABLE","Hub sharing requires the Account backend.","unsupported",false);},async saveConsent(){throw accountError("HUB_UNAVAILABLE","Hub sharing requires the Account backend.","unsupported",false);}},
     hub:{async readConsent(){throw accountError('HUB_UNAVAILABLE','Hub sharing requires the Account backend.','unsupported',false);},async saveConsent(){throw accountError('HUB_UNAVAILABLE','Hub sharing requires the Account backend.','unsupported',false);}},
     apps:{
       async listApps(){await delay();return connectedSummaries();},

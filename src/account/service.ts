@@ -59,6 +59,7 @@ export interface CapabilityService { getCapabilities():Promise<AccountCapabiliti
 
 export interface AccountService {
   hubOAuth:{details(id:string):Promise<import('./api/hubOAuth').HubOAuthDetails>;decide(id:string,owner:string,approve:boolean):Promise<string>};
+  hubTms:{readConsent(translation:import("./api/hubTmsConsent").TmsTranslation):Promise<import("./api/hubTmsConsent").HubTmsConsent>;saveConsent(translation:import("./api/hubTmsConsent").TmsTranslation,permissions:import("./api/hubTmsConsent").HubTmsPurpose[],revision:string|null):Promise<import("./api/hubTmsConsent").HubTmsConsent>};
   hub:{readConsent():Promise<HubNotesConsent>;saveConsent(permissions:HubNotePurpose[],revision:string|null):Promise<HubNotesConsent>};
   auth:AuthService; profile:ProfileService; security:SecurityService; devices:DeviceService;
   apps:AppsService; data:DataService; backup:BackupService; privacy:PrivacyService; capabilities:CapabilityService;
