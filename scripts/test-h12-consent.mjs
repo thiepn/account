@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 const db=new PGlite();
 const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
 const CLIENT='33333333-3333-4333-8333-333333333333',SESSION='44444444-4444-4444-8444-444444444444';
-await db.exec(`create schema auth; create schema private; create role anon; create role authenticated;
+await db.exec(`create function public.has_notes_sync_access() returns boolean language sql as $$select coalesce(current_setting('test.notes_access',true),'true')::boolean$$; create schema auth; create schema private; create role anon; create role authenticated;
 create function auth.jwt() returns jsonb language sql as $$select current_setting('request.jwt.claims',true)::jsonb$$;
 create function auth.uid() returns uuid language sql as $$select (auth.jwt()->>'sub')::uuid$$;
 create table auth.users(id uuid primary key,banned_until timestamptz,deleted_at timestamptz,is_anonymous boolean default false); create table auth.sessions(id uuid primary key,user_id uuid,not_after timestamptz);
