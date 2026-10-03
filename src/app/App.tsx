@@ -1,4 +1,6 @@
 import { HubEntryPage } from "../pages/HubEntryPage";
+import { HubConnectionsPage } from "../pages/HubConnectionsPage";
+import {HUB_SHARING_ENABLED} from './features';
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuthState } from "../account/hooks";
 import { AccountShell } from "../components/layout/AccountShell";
@@ -19,6 +21,7 @@ export function App(){return <AppErrorBoundary><Routes>
   <Route path="/auth/callback" element={<AuthCallbackPage/>}/>
   <Route path="/auth/error" element={<AuthErrorPage/>}/>
   <Route element={<ProtectedAccount/>}>
+    <Route path="/hub/connections" element={HUB_SHARING_ENABLED?<HubConnectionsPage/>:<p>Hub sharing is not available yet.</p>}/>
     <Route path="/" element={<OverviewPage/>}/>
     <Route path="/profile" element={<ProfilePage/>}/>
     <Route path="/security" element={<SecurityPage/>}/>

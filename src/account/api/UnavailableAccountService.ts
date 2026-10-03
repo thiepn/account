@@ -6,6 +6,7 @@ const fail=async()=>{throw error;};
 const domain=new Proxy({}, {get:()=>fail});
 
 export const unavailableAccountService:AccountService={
+  hub:domain as AccountService['hub'],
   auth:{async getState(){return "signed-out";},signIn:fail,completeCallback:fail,isRecentlyAuthenticated:fail,reauthenticate:fail,async signOut(){},subscribe(){return ()=>{};}},
   profile:domain as AccountService["profile"],
   security:domain as AccountService["security"],

@@ -3,6 +3,7 @@ import type { AccountService } from "../service";
 import type { AccountCapabilities, AccountError, AccountIdentity, AccountProfile, Overview } from "../types";
 import { getAccountOAuthOrigin, getAccountSupabaseClient } from "./supabase";
 import { consumeReturnTo, saveReturnTo } from "./returnTo";
+import {parseHubNotesConsent} from './hubConsent';
 
 const profileRowSchema=z.object({
   user_id:z.string().uuid(),
@@ -595,6 +596,10 @@ export function createApiAccountService():AccountService{
         const {error}=await supabase.auth.signOut({scope:"others"});
         if(error)throw mapError(error,"REVOKE_OTHER_SESSIONS_FAILED");
       },
+    },
+    hub:{
+      async readConsent(){const {data,error}=await supabase.rpc('get_thiepn_hub_notes_consent');if(error)throw mapError(error,'HUB_CONSENT_UNAVAILABLE');return parseHubNotesConsent(data);},
+      async saveConsent(permissions,revision){const {data,error}=await supabase.rpc('set_thiepn_hub_notes_consent',{p_permissions:permissions,p_expected_revision:revision});if(error)throw mapError(error,'HUB_CONSENT_SAVE_FAILED');return parseHubNotesConsent(data);},
     },
     apps:{
       async listApps(){
