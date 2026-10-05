@@ -79,6 +79,10 @@ An Account restore:
 - writes the selected historical state as a new higher revision;
 - leaves a durable restore-operation record.
 
+### Library
+
+Library's `library_sync_state` row is live synchronization state, not a recovery snapshot. Manual Library JSON backups remain app-owned and user-triggered through Library's Backup surface; they are not uploaded into THIEPN Account backup storage. Personal EPUB/PDF files remain device-local in both cases.
+
 ### Backup inclusion
 
 `backup.include` is an explicit optional Account permission. Revoking it stops future Account-requested backups; it does not delete historical recovery artifacts.
