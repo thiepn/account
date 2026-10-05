@@ -3,6 +3,7 @@ import { useAccountService } from '../account/context';
 import { HUB_NOTE_PURPOSES, parseHubNotesConsent, type HubNotePurpose, type HubNotesConsent } from '../account/api/hubConsent';
 
 const labels:Record<HubNotePurpose,string>={
+  'notes.hub.capture.create':'Create new text notes from Hub capture',
   'notes.hub.summary.read':'Show recent synced note titles',
   'notes.hub.continue.read':'Offer recently edited notes in Continue',
   'notes.hub.search.read':'Search synced note titles',
@@ -44,7 +45,7 @@ export function HubConnectionsPage(){
   }
   return <section className="max-w-2xl space-y-5">
     <h1 className="text-2xl font-semibold">Hub sharing</h1>
-    <p>Choose what THIEPN Hub may read from your synced Notes and whether it may update Inbox attention. Only titles, reminder attention and update times are shared. Note bodies, attachments and local drafts stay outside this connection.</p>
+    <p>Choose what THIEPN Hub may read from your synced Notes, whether it may update Inbox attention, and whether it may create new text notes. Reading shares only titles, reminder attention and update times. Capture sends only the text you explicitly submit; it cannot read or edit existing note bodies.</p>
     <p>Inbox dismissal hides the attention item; it does not complete, dismiss or snooze the reminder in Notes.</p>
     <p>These choices prepare your connection. Private Notes features will appear in Hub when the integration is available.</p>
     <fieldset disabled={busy||!consent} className="space-y-3"><legend className="font-semibold">Notes</legend>
