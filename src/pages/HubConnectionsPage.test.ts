@@ -38,6 +38,7 @@ describe('H12 consent UI ownership and recovery',()=>{
     expect([...container!.querySelectorAll('input')].every(input=>!input.checked)).toBe(true);
   });
   it('requires reminder reading before write attention and removes both when read is unchecked',async()=>{const saveConsent=vi.fn(async()=>ready);await mount({readConsent:async()=>ready,saveConsent});const boxes=[...container!.querySelectorAll<HTMLInputElement>('input')];expect(boxes[4]!.disabled).toBe(true);await act(async()=>boxes[3]!.click());expect(boxes[4]!.disabled).toBe(false);await act(async()=>boxes[4]!.click());await act(async()=>boxes[3]!.click());expect(boxes[4]!.checked).toBe(false);expect(boxes[4]!.disabled).toBe(true);});
+  it('allows create independently of reminder reading',async()=>{const saveConsent=vi.fn(async()=>ready);await mount({readConsent:async()=>ready,saveConsent});const box=[...container!.querySelectorAll<HTMLInputElement>('input')].at(-1)!;expect(box.disabled).toBe(false);await act(async()=>box.click());await act(async()=>[...container!.querySelectorAll('button')].find(b=>b.textContent==='Save choices')!.click());expect(saveConsent).toHaveBeenCalledWith(['notes.hub.capture.create'],REV);});
   it('revokes every purpose in one save without deleting notes',async()=>{
     const saveConsent=vi.fn(async()=>ready);await mount({readConsent:async()=>({permissions:['notes.hub.search.read'],revision:REV}),saveConsent});
     await act(async()=>[...container!.querySelectorAll('button')].find(b=>b.textContent==='Revoke all Hub access')!.click());
