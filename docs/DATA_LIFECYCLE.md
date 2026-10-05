@@ -51,6 +51,10 @@ Cloud data spans multiple owner-scoped Diet tables. Account aggregates metadata 
 
 `wttn_private.saves` is a revisioned canonical cloud save with tombstone behavior. Deleted tombstones are not presented as live cloud data.
 
+### Library
+
+`library_sync_state` stores one owner-scoped revisioned portable reading-state snapshot. Account reports the current server revision, backup schema version, approximate row size, latest cloud update, and active/retained namespace state. Personal EPUB/PDF bytes and local cover blobs are never part of this namespace.
+
 ## Core
 
 This inventory does not mean THIEPN Core Sync Protocol v1 has been implemented across the ecosystem. Core protocol rollout remains separate infrastructure work.
@@ -86,12 +90,14 @@ An Account restore:
 
 Deletion is capability- and protocol-specific. Account does not translate a generic “delete” button into arbitrary table deletes.
 
-WTTN is currently certified because its command:
+WTTN is certified because its command:
 
 - checks the expected revision;
 - deletes checkpoint history;
 - writes a higher-revision deletion tombstone;
 - rejects stale writes through normal conflict handling.
+
+Library is also certified for app-only deletion. Its deletion plan captures the current cloud revision, execution requires a recent authenticated session, and deletion succeeds only if the stored revision still matches the plan. Library clients treat an unexpectedly missing cloud snapshot after a previous sync baseline as an explicit conflict, so an old device cannot silently recreate deleted cloud state. Browser-local reading state, manual JSON backups, and personal EPUB/PDF files remain untouched.
 
 TMS60 remains blocked until its sync protocol gains an equivalent deletion epoch/tombstone contract.
 
@@ -99,4 +105,4 @@ TMS60 remains blocked until its sync protocol gains an equivalent deletion epoch
 
 Full Account deletion is a separate seven-day lifecycle. Scheduling does not disconnect an app or delete one namespace immediately.
 
-At finalization the canonical Auth user is deleted. Database rows with Auth-user cascade ownership are removed by their existing constraints. Notes storage objects are a preflight/finalization blocker because object storage is not an Auth-user FK cascade.
+At finalization the canonical Auth user is deleted. Database rows with Auth-user cascade ownership—including `library_sync_state`—are removed by their existing constraints. Notes storage objects are a preflight/finalization blocker because object storage is not an Auth-user FK cascade.
