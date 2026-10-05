@@ -33,9 +33,11 @@ Account does not mirror Core backend levels, namespaces or infrastructure owners
 
 `account_app_manifests.core_app_id` is optional. When populated it links an Account product to the matching Core registry ID.
 
-Current explicit links:
+Current explicit links include:
 
 - Diet Copilot -> `diet`
+- French -> `french`
+- Japanese -> `japanese`
 - TMS60 -> `tms60`
 
 Apps such as Notes, WORDSTRIKE and Word to the Nations can exist in the Account registry without a Core namespace.
