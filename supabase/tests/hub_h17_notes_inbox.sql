@@ -25,6 +25,15 @@ begin
  if response->>'status'<>'ready' or response->'data'->'items'->0->>'title'<>'Fictional reminder note' or response::text like '%BODY_MUST_NOT_LEAK%' then raise exception 'projection failed'; end if;
  insert into h17_results values('real owner projection and body exclusion',true);
  first:=response->'data'->'items'->0; updated:=first->>'updatedAt';
+ -- Simulate a source edit whose displayed millisecond timestamp is unchanged.
+ update public.notes_sync_records set version=version+1 where user_id=ids.owner and entity_type='note';
+ begin
+  perform public.thiepn_hub_notes_inbox(ids.revision,gen_random_uuid(),'mark-read',first->>'issueId',updated);
+  raise exception 'same timestamp source change accepted';
+ exception when serialization_failure then insert into h17_results values('source version rejects timestamp collisions',true); end;
+ response:=public.thiepn_hub_notes_inbox(ids.revision,gen_random_uuid());
+ if response->'data'->'items'->0->>'updatedAt' is distinct from updated then raise exception 'collision fixture timestamp changed'; end if;
+ first:=response->'data'->'items'->0; updated:=first->>'updatedAt';
  select payload into before_payload from public.notes_sync_records where user_id=ids.owner and entity_type='reminder';
  response:=public.thiepn_hub_notes_inbox(ids.revision,req,'mark-read',first->>'issueId',updated);
  if response->'data'->'items'->0->>'attention'<>'read' or response->'data'->'items'->0->>'state'<>'open' then raise exception 'read confirmation failed'; end if;
