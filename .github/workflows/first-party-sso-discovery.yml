@@ -1,17 +1,24 @@
-name: Finance P20 OAuth Production Smoke
+name: First-Party SSO Discovery
 
 on:
+  pull_request:
+    paths:
+      - "src/account/api/firstPartyOAuth.ts"
+      - "src/account/api/ApiAccountService.ts"
+      - "src/app/App.tsx"
+      - "supabase/migrations/*first_party_sso*.sql"
+      - ".github/workflows/first-party-sso-discovery.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  oauth-discovery:
+  discovery:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify THIEPN Account OAuth server discovery
+      - name: Verify THIEPN Account OAuth 2.1 issuer
         shell: bash
         env:
           ACCOUNT_ISSUER: https://hycegznamzjhwinegaai.supabase.co/auth/v1
@@ -21,14 +28,17 @@ jobs:
           const issuer = process.env.ACCOUNT_ISSUER;
           if (!issuer) throw new Error("ACCOUNT_ISSUER missing");
 
+          const base = issuer.replace(/\/$/, "");
           const discoveryUrl =
             new URL(issuer).origin +
             "/.well-known/oauth-authorization-server/auth/v1";
-          const response = await fetch(discoveryUrl, {
-            redirect: "error",
-            signal: AbortSignal.timeout(10_000),
-          });
-
+          const response = await fetch(
+            discoveryUrl,
+            {
+              redirect: "error",
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
           if (!response.ok) {
             throw new Error(
               `THIEPN Account OAuth discovery failed: ${response.status}`,
@@ -36,8 +46,6 @@ jobs:
           }
 
           const metadata = await response.json();
-          const base = issuer.replace(/\/$/, "");
-
           if (metadata.issuer !== base) {
             throw new Error(`OAuth issuer mismatch: ${metadata.issuer}`);
           }
@@ -47,11 +55,17 @@ jobs:
           if (metadata.token_endpoint !== base + "/oauth/token") {
             throw new Error("OAuth token endpoint mismatch");
           }
-          if (metadata.registration_endpoint !== base + "/oauth/clients/register") {
-            throw new Error(
-              "OAuth DCR is not enabled; ChatGPT cannot register a Finance client",
-            );
+
+          const requiredScopes = ["openid", "email", "profile", "offline_access"];
+          for (const scope of requiredScopes) {
+            if (
+              !Array.isArray(metadata.scopes_supported) ||
+              !metadata.scopes_supported.includes(scope)
+            ) {
+              throw new Error(`OAuth discovery is missing scope: ${scope}`);
+            }
           }
+
           if (
             !Array.isArray(metadata.code_challenge_methods_supported) ||
             !metadata.code_challenge_methods_supported.includes("S256")
@@ -72,22 +86,5 @@ jobs:
             throw new Error("OAuth public-client token exchange is unavailable");
           }
 
-          const expectedScopes = ["openid", "email", "profile", "offline_access"];
-          for (const scope of expectedScopes) {
-            if (
-              !Array.isArray(metadata.scopes_supported) ||
-              !metadata.scopes_supported.includes(scope)
-            ) {
-              throw new Error(`OAuth discovery is missing scope: ${scope}`);
-            }
-          }
-
-          if (metadata.authorization_response_iss_parameter_supported === true) {
-            throw new Error(
-              "OAuth server now advertises RFC 9207 stable-callback support; review the Finance consent redirect allowlist before activation",
-            );
-          }
-
-          console.log("THIEPN Account Finance P20 OAuth discovery smoke passed");
-          console.log("Callback mode: ChatGPT callback-ID-specific redirect");
+          console.log("THIEPN first-party SSO discovery passed");
           NODE

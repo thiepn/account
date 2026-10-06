@@ -6,6 +6,7 @@ const fail=async()=>{throw error;};
 const domain=new Proxy({}, {get:()=>fail});
 
 export const unavailableAccountService:AccountService={
+  ssoProbe:domain as AccountService['ssoProbe'],
   oauthConsent:domain as AccountService['oauthConsent'],
   hubOAuth:domain as AccountService['hubOAuth'],
   hubTms:domain as AccountService["hubTms"],

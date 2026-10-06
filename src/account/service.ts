@@ -58,6 +58,7 @@ export interface PrivacyService {
 export interface CapabilityService { getCapabilities():Promise<AccountCapabilities>; }
 
 export interface AccountService {
+  ssoProbe:{check(clientId:string):Promise<{signedIn:boolean;registration:import('./api/ssoProbe').SsoProbeRegistration}>};
   oauthConsent:{details(id:string):Promise<import('./api/oauthConsent').OAuthConsentDetails>;decide(id:string,owner:string,kind:import('./api/oauthConsent').OAuthConsentKind,approve:boolean):Promise<string>};
   hubOAuth:{details(id:string):Promise<import('./api/hubOAuth').HubOAuthDetails>;decide(id:string,owner:string,approve:boolean):Promise<string>};
   hubTms:{readConsent(translation:import("./api/hubTmsConsent").TmsTranslation):Promise<import("./api/hubTmsConsent").HubTmsConsent>;saveConsent(translation:import("./api/hubTmsConsent").TmsTranslation,permissions:import("./api/hubTmsConsent").HubTmsPurpose[],revision:string|null):Promise<import("./api/hubTmsConsent").HubTmsConsent>};
