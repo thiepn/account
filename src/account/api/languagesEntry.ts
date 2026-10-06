@@ -34,15 +34,11 @@ export function validateLanguagesAuthorization(value: unknown, issuer: unknown):
 
     const redirect = new URL(url.searchParams.get("redirect_to") ?? "");
     if (
-      redirect.origin !== "https://languages.thiepn.dev" ||
-      redirect.pathname !== "/auth/callback/" ||
+      redirect.href !== LANGUAGES_CALLBACK ||
       redirect.username ||
       redirect.password ||
+      redirect.search ||
       redirect.hash
-    ) return null;
-    if (
-      [...redirect.searchParams.keys()].join() !== "flow" ||
-      !/^[a-f0-9]{64}$/.test(redirect.searchParams.get("flow") ?? "")
     ) return null;
 
     return url.href;
