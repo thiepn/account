@@ -47,11 +47,11 @@ describe('THIEPN first-party OAuth boundary',()=>{
     });
 
     expect(()=>parseFirstPartyOAuthRegistration({
-      clientId:CLIENT,
+      clientId:'33333333-3333-4333-8333-333333333333',
       appSlug:'library',
       appName:'Library',
       clientName:'THIEPN Library',
-      clientUri:'https://evil.test/',
+      clientUri:'https://thiepn.dev/library/',
       redirectUri:REDIRECT,
       automaticIdentityConsent:true,
     },request)).toThrow('FIRST_PARTY_OAUTH_UNAVAILABLE');
