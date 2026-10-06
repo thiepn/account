@@ -97,7 +97,8 @@ jobs:
         shell: bash
         run: |
           cp dist/index.html dist/404.html
-          mkdir -p dist/japanese/entry dist/oauth/consent dist/sso/probe
+          mkdir -p dist/languages/entry dist/japanese/entry dist/oauth/consent dist/sso/probe
+          cp dist/index.html dist/languages/entry/index.html
           cp dist/index.html dist/japanese/entry/index.html
           cp dist/index.html dist/oauth/consent/index.html
           cp dist/index.html dist/sso/probe/index.html
@@ -233,6 +234,20 @@ jobs:
             }
             await routePage.close();
           }
+
+          const languagesEntry = await browser.newPage();
+          const languagesEntryResponse = await languagesEntry.goto("https://account.thiepn.dev/languages/entry", {
+            waitUntil: "networkidle",
+            timeout: 30000,
+          });
+          if (!languagesEntryResponse || languagesEntryResponse.status() !== 200) {
+            throw new Error(`Languages Account entry did not return 200: ${languagesEntryResponse?.status() ?? "no response"}`);
+          }
+          const invalidLanguagesRequest = languagesEntry.getByRole("heading", {name:"This Languages sign-in request is invalid.", exact:true});
+          if (!(await invalidLanguagesRequest.isVisible().catch(()=>false))) {
+            throw new Error("Languages Account entry route did not render its expected boundary.");
+          }
+          await languagesEntry.close();
 
           const japaneseEntry = await browser.newPage();
           const japaneseEntryResponse = await japaneseEntry.goto("https://account.thiepn.dev/japanese/entry", {
