@@ -23,6 +23,16 @@ export function SsoProbePage(){
       }
 
       const supabase=getAccountSupabaseClient();
+      const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
+      if(!active||sessionError)return;
+
+      let signedIn=false;
+      if(sessionData.session){
+        const {data:userData,error:userError}=await supabase.auth.getUser();
+        if(!active||userError)return;
+        signedIn=Boolean(userData.user&&!userData.user.is_anonymous);
+      }
+
       const {data:resolved,error:resolveError}=await supabase.rpc(
         'resolve_thiepn_first_party_sso_probe',
         {p_client_id:clientId},
@@ -37,18 +47,13 @@ export function SsoProbePage(){
       }
       if(parentOrigin!==registration.origin)return;
 
-      const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
-      if(!active||sessionError)return;
-
-      let signedIn=false;
-      if(sessionData.session){
-        const {data:userData,error:userError}=await supabase.auth.getUser();
-        if(!active||userError)return;
-        signedIn=Boolean(userData.user&&!userData.user.is_anonymous);
-      }
-
       window.parent.postMessage(
-        {type:THIEPN_SSO_PROBE_MESSAGE,clientId,signedIn},
+        {
+          type:THIEPN_SSO_PROBE_MESSAGE,
+          clientId,
+          signedIn,
+          eligible:registration.eligible,
+        },
         registration.origin,
       );
     })();
