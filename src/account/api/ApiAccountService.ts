@@ -14,6 +14,7 @@ import {
   parseFirstPartyOAuthRegistration,
   parseFirstPartyOAuthResolvedRegistration,
 } from './firstPartyOAuth';
+import {parseSsoProbeRegistration} from './ssoProbe';
 
 const profileRowSchema=z.object({
   user_id:z.string().uuid(),
@@ -506,6 +507,29 @@ export function createApiAccountService():AccountService{
   }
 
   const service:AccountService={
+    ssoProbe:{
+      async check(clientId){
+        const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
+        if(sessionError)throw mapError(sessionError,'SSO_PROBE_UNAVAILABLE');
+
+        let signedIn=false;
+        if(sessionData.session){
+          const {data:userData,error:userError}=await supabase.auth.getUser();
+          if(userError)throw mapError(userError,'SSO_PROBE_UNAVAILABLE');
+          signedIn=Boolean(userData.user&&!userData.user.is_anonymous);
+        }
+
+        const {data:resolved,error:resolveError}=await supabase.rpc(
+          'resolve_thiepn_first_party_sso_probe',
+          {p_client_id:clientId},
+        );
+        if(resolveError||!resolved)throw mapError(resolveError,'SSO_PROBE_UNAVAILABLE');
+        return{
+          signedIn,
+          registration:parseSsoProbeRegistration(resolved,clientId),
+        };
+      },
+    },
     auth:{
       async getState(){
         const {data:sessionData,error:sessionError}=await withTimeout(
