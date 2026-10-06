@@ -56,34 +56,53 @@ export function firstPartyOAuthRequest(raw:unknown,id:string,owner:string):First
   };
 }
 
-export function parseFirstPartyOAuthRegistration(
+export function parseFirstPartyOAuthResolvedRegistration(
   raw:unknown,
-  request:FirstPartyOAuthRequest,
+  redirectUri:string,
 ):FirstPartyOAuthRegistration{
   if(!raw||typeof raw!=='object'||Array.isArray(raw))
     throw new Error('FIRST_PARTY_OAUTH_UNAVAILABLE');
   const value=raw as Record<string,unknown>;
   if(
-    value.clientId!==request.clientId||
+    typeof value.clientId!=='string'||
+    !UUID_RE.test(value.clientId)||
     typeof value.appSlug!=='string'||
     !/^[a-z][a-z0-9-]{0,62}$/.test(value.appSlug)||
     typeof value.appName!=='string'||
     !value.appName.trim()||
     typeof value.clientName!=='string'||
     !value.clientName.trim()||
-    value.clientUri!==request.clientUri||
-    value.redirectUri!==request.redirectUri||
+    typeof value.clientUri!=='string'||
+    exactHttpsUrl(value.clientUri,'FIRST_PARTY_OAUTH_UNAVAILABLE')!==value.clientUri||
+    value.redirectUri!==redirectUri||
     typeof value.automaticIdentityConsent!=='boolean'
   )throw new Error('FIRST_PARTY_OAUTH_UNAVAILABLE');
   return{
-    clientId:request.clientId,
+    clientId:value.clientId,
     appSlug:value.appSlug,
     appName:value.appName,
     clientName:value.clientName,
-    clientUri:request.clientUri,
-    redirectUri:request.redirectUri,
+    clientUri:value.clientUri,
+    redirectUri,
     automaticIdentityConsent:value.automaticIdentityConsent,
   };
+}
+
+export function parseFirstPartyOAuthRegistration(
+  raw:unknown,
+  request:FirstPartyOAuthRequest,
+):FirstPartyOAuthRegistration{
+  const registration=parseFirstPartyOAuthResolvedRegistration(raw,request.redirectUri);
+  if(
+    registration.clientId!==request.clientId||
+    registration.clientUri!==request.clientUri
+  )throw new Error('FIRST_PARTY_OAUTH_UNAVAILABLE');
+  return registration;
+}
+
+export function firstPartyOAuthRedirectTarget(raw:unknown):string{
+  const url=new URL(exactHttpsUrl(raw,'FIRST_PARTY_OAUTH_UNAVAILABLE'));
+  return new URL(url.pathname,url.origin).href;
 }
 
 export function firstPartyOAuthRedirect(raw:unknown,registeredRedirect:string):string{
