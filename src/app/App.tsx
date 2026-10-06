@@ -1,4 +1,5 @@
 import {HubTmsConnectionsPage} from '../pages/HubTmsConnectionsPage';
+import { LanguagesEntryPage } from "../pages/LanguagesEntryPage";
 import { HubEntryPage } from "../pages/HubEntryPage";
 import { HubConnectionsPage } from "../pages/HubConnectionsPage";
 import {HUB_SHARING_ENABLED,HUB_OAUTH_ENABLED} from './features';
@@ -19,6 +20,7 @@ function ProtectedAccount(){
 }
 export function App(){return <AppErrorBoundary><Routes>
   <Route path="/hub/entry" element={<HubEntryPage/>}/>
+  <Route path="/languages/entry" element={<LanguagesEntryPage/>}/>
   <Route path="/auth/sign-in" element={<SignInPage/>}/>
   <Route path="/auth/callback" element={<AuthCallbackPage/>}/>
   <Route path="/auth/error" element={<AuthErrorPage/>}/>
