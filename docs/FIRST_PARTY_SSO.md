@@ -20,4 +20,4 @@ When a registered first-party authorization request reaches `/oauth/consent`:
 
 Sensitive optional grants remain separate. Automatic SSO never enables Google Drive, personal-file cloud, cross-app private data, or other sensitive capabilities.
 
-Native Account dashboard sessions have no OAuth `client_id`. First-party app tokens do. Control-plane RLS allows an OAuth client to see only the connection, grants, and permission definitions for the app bound to its own client ID. Unknown/delegated clients see none of that state.
+Native Account dashboard sessions have no OAuth `client_id`. First-party app tokens do. Control-plane RLS allows an OAuth client to see only the connection, grants, and permission definitions for the app bound to its own client ID. Unknown/delegated clients see none of that state. Disconnecting an app denies its grants and deletes only that app's OAuth Auth sessions; their refresh tokens cascade away, while the native Account dashboard session remains signed in.
