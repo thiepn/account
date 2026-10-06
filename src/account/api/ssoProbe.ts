@@ -6,6 +6,7 @@ export interface SsoProbeRegistration{
   clientId:string;
   appSlug:string;
   origin:string;
+  eligible:boolean;
 }
 
 export function ssoProbeClientId(search:string,hash:string):string{
@@ -25,12 +26,13 @@ export function parseSsoProbeRegistration(raw:unknown,clientId:string):SsoProbeR
     value.clientId!==clientId||
     typeof value.appSlug!=='string'||
     !/^[a-z][a-z0-9-]{0,62}$/.test(value.appSlug)||
-    typeof value.origin!=='string'
+    typeof value.origin!=='string'||
+    typeof value.eligible!=='boolean'
   )throw new Error('SSO_PROBE_INVALID');
   const origin=new URL(value.origin);
   if(origin.protocol!=='https:'||origin.origin!==value.origin||origin.pathname!=='/'||origin.search||origin.hash)
     throw new Error('SSO_PROBE_INVALID');
-  return{clientId,appSlug:value.appSlug,origin:value.origin};
+  return{clientId,appSlug:value.appSlug,origin:value.origin,eligible:value.eligible};
 }
 
 export function referrerOrigin(referrer:string):string{
