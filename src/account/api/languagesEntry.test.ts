@@ -10,7 +10,7 @@ const valid = () => {
   url.searchParams.set("provider", "google");
   url.searchParams.set(
     "redirect_to",
-    `https://languages.thiepn.dev/auth/callback/?flow=${"a".repeat(64)}`,
+    "https://languages.thiepn.dev/auth/callback/",
   );
   url.searchParams.set("code_challenge", "b".repeat(43));
   url.searchParams.set("code_challenge_method", "s256");
@@ -50,9 +50,10 @@ describe("Languages tokenless entry boundary", () => {
     "https://evil.test/",
     "https://languages.thiepn.dev.evil.test/auth/callback/",
     "https://languages.thiepn.dev/auth/callback/?flow=x",
-    `https://languages.thiepn.dev/auth/callback/?flow=${"a".repeat(64)}&flow=${"a".repeat(64)}`,
+    "https://languages.thiepn.dev/auth/callback/?extra=1",
+    "https://languages.thiepn.dev/auth/callback",
     "https://languages.thiepn.dev/",
-    `https://languages.thiepn.dev/auth/callback/?flow=${"a".repeat(64)}#token`,
+    "https://languages.thiepn.dev/auth/callback/#token",
   ])("rejects unsafe callback %s", redirect => {
     const url = valid();
     url.searchParams.set("redirect_to", redirect);
