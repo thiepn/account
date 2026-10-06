@@ -44,6 +44,7 @@ Implemented real slices include:
 - server-planned WTTN cloud deletion with stale-client tombstone protection
 - seven-day cancellable full Account deletion lifecycle
 - server-authoritative recent-authentication guards for sensitive actions
+- staged OAuth consent for read-only ChatGPT → THIEPN Finance MCP access, isolated from Hub sharing permissions
 
 Unsupported backend capabilities fail closed rather than falling back to mock state.
 
@@ -96,3 +97,5 @@ See:
 - `docs/DATA_LIFECYCLE.md`
 
 Hub tokenless entry and return contract: [docs/HUB_ENTRY.md](docs/HUB_ENTRY.md).
+
+Finance MCP OAuth consent: [docs/FINANCE_P20_OAUTH.md](docs/FINANCE_P20_OAUTH.md).
