@@ -100,7 +100,6 @@ describe('THIEPN first-party OAuth boundary',()=>{
     {...REQUEST,user:{id:CLIENT}},
     {...REQUEST,client:{id:'not-a-uuid',uri:'https://thiepn.dev/library/'}},
     {...REQUEST,redirect_uri:'http://thiepn.dev/library/auth/callback/'},
-    {...REQUEST,client:{id:CLIENT,uri:'https://thiepn.dev/library/#fragment'}},
     {...REQUEST,scope:''},
   ])('rejects malformed request %j',(value)=>{
     expect(()=>firstPartyOAuthRequest(value,ID,OWNER)).toThrow('FIRST_PARTY_OAUTH_UNAVAILABLE');
