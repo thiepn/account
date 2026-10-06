@@ -1,4 +1,5 @@
 name: Register Languages OAuth Client Once
+# One-shot production registration; remove after the client ID is pinned.
 
 on:
   push:
