@@ -45,6 +45,7 @@ Implemented real slices include:
 - seven-day cancellable full Account deletion lifecycle
 - server-authoritative recent-authentication guards for sensitive actions
 - staged OAuth consent for read-only ChatGPT → THIEPN Finance MCP access, isolated from Hub sharing permissions
+- first-party OAuth 2.1/PKCE SSO registry, silent eligibility probe, app-scoped sessions, disconnect revocation and explicit reconnect semantics
 
 Unsupported backend capabilities fail closed rather than falling back to mock state.
 
@@ -77,7 +78,8 @@ GitHub Actions additionally verifies:
 - desktop/mobile lifecycle smoke tests;
 - production release artifacts are built in real-service mode;
 - each artifact contains `release.json` and `SHA256SUMS`;
-- after deployment, the workflow verifies the live release commit matches the green CI SHA.
+- after deployment, the workflow verifies the live release commit matches the green CI SHA;
+- a separate production burn-in continuously checks the Account OAuth contract and the live Account → Library/Languages/Japanese integration surfaces.
 
 ## Deployment
 
@@ -95,6 +97,7 @@ See:
 - `docs/ACCOUNT_API_CONTRACT.md`
 - `docs/SECURITY_INVARIANTS.md`
 - `docs/DATA_LIFECYCLE.md`
+- `docs/SSO_PRODUCTION_BURN_IN.md`
 
 Hub tokenless entry and return contract: [docs/HUB_ENTRY.md](docs/HUB_ENTRY.md).
 
