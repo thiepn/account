@@ -1,0 +1,98 @@
+name: Register Languages OAuth Client Once
+
+on:
+  push:
+    branches:
+      - register-languages-oauth-once
+
+permissions:
+  contents: read
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Register exact public Languages client
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const issuer = "https://hycegznamzjhwinegaai.supabase.co/auth/v1";
+          const discoveryUrl =
+            new URL(issuer).origin +
+            "/.well-known/oauth-authorization-server/auth/v1";
+
+          const discoveryResponse = await fetch(discoveryUrl, {
+            redirect: "error",
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!discoveryResponse.ok) {
+            throw new Error(`OAuth discovery failed: ${discoveryResponse.status}`);
+          }
+          const metadata = await discoveryResponse.json();
+          const registrationEndpoint = metadata.registration_endpoint;
+          if (
+            typeof registrationEndpoint !== "string" ||
+            new URL(registrationEndpoint).origin !== new URL(issuer).origin
+          ) {
+            throw new Error("Trusted OAuth registration endpoint is unavailable");
+          }
+
+          const response = await fetch(registrationEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              client_name: "THIEPN Languages",
+              client_uri: "https://languages.thiepn.dev/",
+              redirect_uris: [
+                "https://languages.thiepn.dev/auth/callback/",
+              ],
+              token_endpoint_auth_method: "none",
+              grant_types: ["authorization_code", "refresh_token"],
+              response_types: ["code"],
+            }),
+            redirect: "error",
+            signal: AbortSignal.timeout(10_000),
+          });
+
+          const raw = await response.text();
+          let payload;
+          try {
+            payload = JSON.parse(raw);
+          } catch {
+            throw new Error(
+              `OAuth registration returned non-JSON: ${response.status}`,
+            );
+          }
+          if (!response.ok) {
+            throw new Error(
+              `OAuth registration failed: ${response.status} ${JSON.stringify(payload)}`,
+            );
+          }
+
+          const id = payload.client_id;
+          if (
+            typeof id !== "string" ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+          ) {
+            throw new Error("OAuth registration returned an invalid client_id");
+          }
+          if (payload.client_secret) {
+            throw new Error("Languages OAuth client was not registered as public");
+          }
+          if (
+            payload.token_endpoint_auth_method &&
+            payload.token_endpoint_auth_method !== "none"
+          ) {
+            throw new Error(
+              `Unexpected token auth method: ${payload.token_endpoint_auth_method}`,
+            );
+          }
+
+          console.log("LANGUAGES_OAUTH_CLIENT_ID=" + id);
+          console.log("Languages public OAuth client registration passed");
+          NODE
