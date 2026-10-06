@@ -22,7 +22,8 @@ jobs:
           if (!issuer) throw new Error("ACCOUNT_ISSUER missing");
 
           const discoveryUrl =
-            issuer.replace(/\/$/, "") + "/.well-known/oauth-authorization-server";
+            new URL(issuer).origin +
+            "/.well-known/oauth-authorization-server/auth/v1";
           const response = await fetch(discoveryUrl, {
             redirect: "error",
             signal: AbortSignal.timeout(10_000),
