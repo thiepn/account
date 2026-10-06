@@ -25,7 +25,6 @@ describe('THIEPN first-party OAuth boundary',()=>{
       authorizationId:ID,
       owner:OWNER,
       clientId:CLIENT,
-      clientUri:'https://thiepn.dev/library/',
       redirectUri:REDIRECT,
       scope:'openid email profile offline_access',
     });
