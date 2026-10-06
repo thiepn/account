@@ -7,6 +7,13 @@ import { consumeReturnTo, saveReturnTo } from "./returnTo";
 import {parseHubNotesConsent} from './hubConsent';
 import {authorizationId,hubOAuthRedirect,parseHubOAuthDetails} from './hubOAuth';
 import {oauthConsentRedirect,parseOAuthConsentDetails} from './oauthConsent';
+import {
+  firstPartyOAuthRedirect,
+  firstPartyOAuthRedirectTarget,
+  firstPartyOAuthRequest,
+  parseFirstPartyOAuthRegistration,
+  parseFirstPartyOAuthResolvedRegistration,
+} from './firstPartyOAuth';
 
 const profileRowSchema=z.object({
   user_id:z.string().uuid(),
@@ -660,7 +667,6 @@ export function createApiAccountService():AccountService{
       async details(id){
         const hubEnabled=import.meta.env.VITE_HUB_OAUTH_ENABLED==='staged-v1';
         const financeEnabled=import.meta.env.VITE_FINANCE_MCP_OAUTH_ENABLED==='staged-v1';
-        if(!hubEnabled&&!financeEnabled)return unsupported();
         authorizationId(id);
         const {data:user,error:userError}=await supabase.auth.getUser();
         if(userError||!user.user)throw mapError(userError,'OAUTH_CONSENT_UNAVAILABLE');
@@ -668,6 +674,58 @@ export function createApiAccountService():AccountService{
         if(error)throw mapError(error,'OAUTH_CONSENT_UNAVAILABLE');
         const {data:current,error:currentError}=await supabase.auth.getUser();
         if(currentError||current.user?.id!==user.user.id)throw mapError(currentError,'OAUTH_CONSENT_UNAVAILABLE');
+
+        if(data&&typeof data==='object'&&!Array.isArray(data)&&Object.keys(data).join(',')==='redirect_url'){
+          let target:string|null=null;
+          try{target=firstPartyOAuthRedirectTarget((data as Record<string,unknown>).redirect_url);}catch{}
+          if(target){
+            const {data:resolved,error:resolveError}=await supabase.rpc('resolve_thiepn_first_party_oauth_redirect',{
+              p_redirect_uri:target,
+            });
+            if(resolveError){
+              if(!String(resolveError.message??'').includes('first_party_oauth_client_unavailable'))
+                throw mapError(resolveError,'OAUTH_CONSENT_UNAVAILABLE');
+            }else if(resolved){
+              const registration=parseFirstPartyOAuthResolvedRegistration(resolved,target);
+              if(!registration.automaticIdentityConsent)
+                throw mapError(new Error('FIRST_PARTY_OAUTH_CONSENT_REQUIRED'),'OAUTH_CONSENT_UNAVAILABLE');
+              return{redirectUrl:firstPartyOAuthRedirect((data as Record<string,unknown>).redirect_url,registration.redirectUri)};
+            }
+          }
+        }else{
+          let request:null|ReturnType<typeof firstPartyOAuthRequest>=null;
+          try{request=firstPartyOAuthRequest(data,id,user.user.id);}catch{}
+          if(request){
+            const {data:resolved,error:resolveError}=await supabase.rpc('resolve_thiepn_first_party_oauth_client',{
+              p_client_id:request.clientId,
+              p_redirect_uri:request.redirectUri,
+              p_scope:request.scope,
+            });
+            if(resolveError){
+              if(!String(resolveError.message??'').includes('first_party_oauth_client_unavailable'))
+                throw mapError(resolveError,'OAUTH_CONSENT_UNAVAILABLE');
+            }else if(resolved){
+              const registration=parseFirstPartyOAuthRegistration(resolved,request);
+              if(!registration.automaticIdentityConsent)
+                throw mapError(new Error('FIRST_PARTY_OAUTH_CONSENT_REQUIRED'),'OAUTH_CONSENT_UNAVAILABLE');
+
+              const {error:connectionError}=await supabase.rpc('ensure_thiepn_first_party_app_connection',{
+                p_client_id:registration.clientId,
+                p_app_slug:registration.appSlug,
+              });
+              if(connectionError)throw mapError(connectionError,'OAUTH_CONSENT_UNAVAILABLE');
+
+              const {data:approved,error:approvalError}=await supabase.auth.oauth.approveAuthorization(id,{skipBrowserRedirect:true});
+              if(approvalError||!approved)throw mapError(approvalError,'OAUTH_CONSENT_UNAVAILABLE');
+
+              const {data:verified,error:verifiedError}=await supabase.auth.getUser();
+              if(verifiedError||verified.user?.id!==user.user.id)throw mapError(verifiedError,'OAUTH_CONSENT_UNAVAILABLE');
+              return{redirectUrl:firstPartyOAuthRedirect(approved.redirect_url,registration.redirectUri)};
+            }
+          }
+        }
+
+        if(!hubEnabled&&!financeEnabled)return unsupported();
         return parseOAuthConsentDetails(data,id,user.user.id,{
           hubEnabled,
           hubClientId:import.meta.env.VITE_HUB_OAUTH_CLIENT_ID??'',
