@@ -29,6 +29,18 @@ The frontend uses `@supabase/supabase-js` behind `ApiAccountService`.
 - Normal Sign out uses `scope: "local"` so other device sessions are not implicitly revoked.
 - Global/other-session revocation belongs to P14.
 
+## First-party app entry boundary
+
+THIEPN first-party apps do not create independent identity systems. Browser PKCE state remains with the requesting app, while user-facing sign-in is handed through an Account-owned tokenless entry that validates the exact authorization issuer, provider, PKCE method and callback before forwarding to Supabase Auth.
+
+Current entry routes include:
+
+- Hub: `/hub/entry`
+- Languages: `/languages/entry`
+- Japanese: `/japanese/entry` → `https://thiepn.dev/japanese/auth/callback/`
+
+No access token, refresh token or PKCE verifier is passed through the Account origin. All apps resolve to the same canonical `auth.users.id` Account identity.
+
 ## OAuth callback
 
 `/auth/callback` exchanges the PKCE code with Supabase and removes callback state through route replacement.
