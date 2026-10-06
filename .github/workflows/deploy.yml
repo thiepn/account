@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows: ["Account CI"]
     types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
