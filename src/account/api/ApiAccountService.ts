@@ -698,7 +698,6 @@ export function createApiAccountService():AccountService{
           if(request){
             const {data:resolved,error:resolveError}=await supabase.rpc('resolve_thiepn_first_party_oauth_client',{
               p_client_id:request.clientId,
-              p_client_uri:request.clientUri,
               p_redirect_uri:request.redirectUri,
               p_scope:request.scope,
             });
