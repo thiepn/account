@@ -81,6 +81,12 @@ const inventoryRowSchema=z.object({
   last_successful_sync_at:z.string().nullable(),
   sync_supported:z.boolean(),
 });
+const libraryFileInventorySchema=z.object({
+  objectCount:numericBigint,
+  storageBytes:numericBigint,
+  updatedAt:z.string().nullable(),
+  namespaceStatus:z.enum(["active","retained"]),
+});
 
 const backupInventoryRowSchema=z.object({
   backup_ref:z.string(),
@@ -273,11 +279,18 @@ async function loadRealApps(supabase:ReturnType<typeof getAccountSupabaseClient>
 }
 
 async function loadRealDataInventory(supabase:ReturnType<typeof getAccountSupabaseClient>){
-  const {data,error}=await supabase.rpc("get_thiepn_account_data_inventory");
-  if(error)throw mapRpcError(error,"DATA_INVENTORY_FAILED");
-  const parsed=z.array(inventoryRowSchema).safeParse(data??[]);
+  const [inventoryResult,fileInventoryResult]=await Promise.all([
+    supabase.rpc("get_thiepn_account_data_inventory"),
+    supabase.rpc("get_thiepn_library_file_inventory"),
+  ]);
+  if(inventoryResult.error)throw mapRpcError(inventoryResult.error,"DATA_INVENTORY_FAILED");
+  if(fileInventoryResult.error)throw mapRpcError(fileInventoryResult.error,"LIBRARY_FILE_INVENTORY_FAILED");
+  const parsed=z.array(inventoryRowSchema).safeParse(inventoryResult.data??[]);
   if(!parsed.success)throw normalizedError("DATA_INVENTORY_SCHEMA_INVALID","server",false);
-  return parsed.data.map((row)=>({
+  const fileInventory=libraryFileInventorySchema.safeParse(fileInventoryResult.data);
+  if(!fileInventory.success)throw normalizedError("LIBRARY_FILE_INVENTORY_SCHEMA_INVALID","server",false);
+
+  const items=parsed.data.map((row)=>({
     appId:row.app_slug,
     appName:row.app_name,
     namespaceId:row.namespace_id,
@@ -301,6 +314,39 @@ async function loadRealDataInventory(supabase:ReturnType<typeof getAccountSupaba
     },
     clients:[],
   }));
+
+  if(fileInventory.data.objectCount>0){
+    const library=items.find((item)=>item.appId==="library");
+    if(library){
+      library.storageBytes+=fileInventory.data.storageBytes;
+      library.recordCount=(library.recordCount??0)+fileInventory.data.objectCount;
+      if(fileInventory.data.updatedAt&&(!library.updatedAt||fileInventory.data.updatedAt>library.updatedAt)){
+        library.updatedAt=fileInventory.data.updatedAt;
+        library.sync.lastDataChangeAt=fileInventory.data.updatedAt;
+      }
+    }else{
+      items.push({
+        appId:"library",
+        appName:"Library",
+        namespaceId:"library:default",
+        namespaceStatus:fileInventory.data.namespaceStatus,
+        storageBytes:fileInventory.data.storageBytes,
+        storageApproximate:true,
+        recordCount:fileInventory.data.objectCount,
+        updatedAt:fileInventory.data.updatedAt??undefined,
+        sync:{
+          status:"unavailable" as const,
+          lastAttemptAt:fileInventory.data.updatedAt??undefined,
+          lastSuccessfulSyncAt:undefined,
+          lastDataChangeAt:fileInventory.data.updatedAt??undefined,
+        },
+        configuration:{supported:true,enabled:false,userControllable:false},
+        clients:[],
+      });
+    }
+  }
+
+  return items;
 }
 
 async function loadRealBackups(supabase:ReturnType<typeof getAccountSupabaseClient>){
@@ -874,6 +920,32 @@ export function createApiAccountService():AccountService{
       async startAppDataDeletion(planId){
         const idCheck=z.string().uuid().safeParse(planId);
         if(!idCheck.success)throw normalizedError("DELETION_PLAN_INVALID","validation",false);
+
+        const {data:planRow,error:planReadError}=await supabase
+          .from("account_app_deletion_plans")
+          .select("app_slug")
+          .eq("id",idCheck.data)
+          .maybeSingle();
+        if(planReadError)throw mapError(planReadError,"DELETION_PLAN_READ_FAILED");
+        if(!planRow)throw normalizedError("DELETION_PLAN_NOT_FOUND","validation",false);
+
+        if(planRow.app_slug==="library"){
+          const {error:authorizationError}=await supabase.rpc("authorize_thiepn_library_file_deletion",{p_plan_id:idCheck.data});
+          if(authorizationError)throw mapRpcError(authorizationError,"LIBRARY_FILE_DELETION_AUTH_FAILED");
+
+          const user=await getUser();
+          const storage=supabase.storage.from("library-personal-books");
+          for(;;){
+            const {data:objects,error:listError}=await storage.list(user.id,{limit:100,offset:0,sortBy:{column:"name",order:"asc"}});
+            if(listError)throw mapError(listError,"LIBRARY_FILE_LIST_FAILED");
+            const paths=(objects??[]).filter((object)=>/^[a-f0-9]{64}\.(?:epub|pdf)$/i.test(object.name)).map((object)=>`${user.id}/${object.name}`);
+            if(!paths.length)break;
+            const {error:removeError}=await storage.remove(paths);
+            if(removeError)throw mapError(removeError,"LIBRARY_FILE_DELETE_FAILED");
+            if((objects??[]).length<100)break;
+          }
+        }
+
         const {data,error}=await supabase.rpc("execute_thiepn_app_data_deletion",{p_plan_id:idCheck.data});
         if(error)throw mapRpcError(error,"APP_DATA_DELETION_FAILED");
         const parsed=z.object({
