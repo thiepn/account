@@ -41,6 +41,7 @@ const accountAppRowSchema=z.object({
   name:z.string(),
   description:z.string(),
   path:z.string(),
+  product_url:z.string().regex(/^https:\/\/[^/?#]+(?:\/[^?#]*)?$/),
   sort_order:z.number(),
   active:z.boolean(),
 });
@@ -215,7 +216,7 @@ function describeUserAgent(userAgent:string|null){
 
 async function loadRealApps(supabase:ReturnType<typeof getAccountSupabaseClient>){
   const [appsResult,manifestsResult,permissionsResult,connectionsResult,grantsResult]=await Promise.all([
-    supabase.from("account_apps").select("slug,name,description,path,sort_order,active").order("sort_order",{ascending:true}),
+    supabase.from("account_apps").select("slug,name,description,path,product_url,sort_order,active").order("sort_order",{ascending:true}),
     supabase.from("account_app_manifests").select("app_slug,core_app_id,capabilities"),
     supabase.from("account_app_permissions").select("app_slug,permission_id,name,description,required,mutable_by_user,sensitivity,sort_order,active").order("sort_order",{ascending:true}),
     supabase.from("account_app_connections").select("app_slug,status,connected_at,last_used_at,disconnected_at"),
@@ -264,7 +265,7 @@ async function loadRealApps(supabase:ReturnType<typeof getAccountSupabaseClient>
         name:appRow?.name??"Unknown THIEPN app",
         description:appRow?.description??"This connection refers to an app that is no longer active in the Account registry.",
         status:appRow?.active===false?"disabled" as const:"active" as const,
-        productUrl:appRow?.path?`https://thiepn.dev${appRow.path}`:undefined,
+        productUrl:appRow?.product_url,
         supportedCapabilities:{
           accountIdentity:true,
           cloudSync:Boolean(rawCaps["sync"]||rawCaps["cloud_saves"]),
