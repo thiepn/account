@@ -1,0 +1,87 @@
+name: First-Party SSO Discovery
+
+on:
+  pull_request:
+    paths:
+      - "src/account/api/firstPartyOAuth.ts"
+      - "src/account/api/ApiAccountService.ts"
+      - "src/app/App.tsx"
+      - "supabase/migrations/*first_party_sso*.sql"
+      - ".github/workflows/first-party-sso-discovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify THIEPN Account OAuth 2.1 issuer
+        shell: bash
+        env:
+          ACCOUNT_ISSUER: https://hycegznamzjhwinegaai.supabase.co/auth/v1
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const issuer = process.env.ACCOUNT_ISSUER;
+          if (!issuer) throw new Error("ACCOUNT_ISSUER missing");
+
+          const base = issuer.replace(/\/$/, "");
+          const response = await fetch(
+            base + "/.well-known/oauth-authorization-server",
+            {
+              redirect: "error",
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
+          if (!response.ok) {
+            throw new Error(
+              `THIEPN Account OAuth discovery failed: ${response.status}`,
+            );
+          }
+
+          const metadata = await response.json();
+          if (metadata.issuer !== base) {
+            throw new Error(`OAuth issuer mismatch: ${metadata.issuer}`);
+          }
+          if (metadata.authorization_endpoint !== base + "/oauth/authorize") {
+            throw new Error("OAuth authorization endpoint mismatch");
+          }
+          if (metadata.token_endpoint !== base + "/oauth/token") {
+            throw new Error("OAuth token endpoint mismatch");
+          }
+
+          const requiredScopes = ["openid", "email", "profile", "offline_access"];
+          for (const scope of requiredScopes) {
+            if (
+              !Array.isArray(metadata.scopes_supported) ||
+              !metadata.scopes_supported.includes(scope)
+            ) {
+              throw new Error(`OAuth discovery is missing scope: ${scope}`);
+            }
+          }
+
+          if (
+            !Array.isArray(metadata.code_challenge_methods_supported) ||
+            !metadata.code_challenge_methods_supported.includes("S256")
+          ) {
+            throw new Error("OAuth discovery does not advertise PKCE S256");
+          }
+          if (
+            !Array.isArray(metadata.grant_types_supported) ||
+            !metadata.grant_types_supported.includes("authorization_code") ||
+            !metadata.grant_types_supported.includes("refresh_token")
+          ) {
+            throw new Error("OAuth discovery is missing code/refresh grants");
+          }
+          if (
+            !Array.isArray(metadata.token_endpoint_auth_methods_supported) ||
+            !metadata.token_endpoint_auth_methods_supported.includes("none")
+          ) {
+            throw new Error("OAuth public-client token exchange is unavailable");
+          }
+
+          console.log("THIEPN first-party SSO discovery passed");
+          NODE
