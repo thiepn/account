@@ -6,6 +6,7 @@ import { getAccountOAuthOrigin, getAccountSupabaseClient } from "./supabase";
 import { consumeReturnTo, saveReturnTo } from "./returnTo";
 import {parseHubNotesConsent} from './hubConsent';
 import {authorizationId,hubOAuthRedirect,parseHubOAuthDetails} from './hubOAuth';
+import {oauthConsentRedirect,parseOAuthConsentDetails} from './oauthConsent';
 
 const profileRowSchema=z.object({
   user_id:z.string().uuid(),
@@ -654,6 +655,34 @@ export function createApiAccountService():AccountService{
     hub:{
       async readConsent(){const {data,error}=await supabase.rpc('get_thiepn_hub_notes_consent');if(error)throw mapError(error,'HUB_CONSENT_UNAVAILABLE');return parseHubNotesConsent(data);},
       async saveConsent(permissions,revision){const {data,error}=await supabase.rpc('set_thiepn_hub_notes_consent',{p_permissions:permissions,p_expected_revision:revision});if(error)throw mapError(error,'HUB_CONSENT_SAVE_FAILED');return parseHubNotesConsent(data);},
+    },
+    oauthConsent:{
+      async details(id){
+        const hubEnabled=import.meta.env.VITE_HUB_OAUTH_ENABLED==='staged-v1';
+        const financeEnabled=import.meta.env.VITE_FINANCE_MCP_OAUTH_ENABLED==='staged-v1';
+        if(!hubEnabled&&!financeEnabled)return unsupported();
+        authorizationId(id);
+        const {data:user,error:userError}=await supabase.auth.getUser();
+        if(userError||!user.user)throw mapError(userError,'OAUTH_CONSENT_UNAVAILABLE');
+        const {data,error}=await supabase.auth.oauth.getAuthorizationDetails(id);
+        if(error)throw mapError(error,'OAUTH_CONSENT_UNAVAILABLE');
+        const {data:current,error:currentError}=await supabase.auth.getUser();
+        if(currentError||current.user?.id!==user.user.id)throw mapError(currentError,'OAUTH_CONSENT_UNAVAILABLE');
+        return parseOAuthConsentDetails(data,id,user.user.id,{
+          hubEnabled,
+          hubClientId:import.meta.env.VITE_HUB_OAUTH_CLIENT_ID??'',
+          financeEnabled,
+        });
+      },
+      async decide(id,owner,kind,approve){
+        const details=await service.oauthConsent.details(id);
+        if('redirectUrl' in details||details.owner!==owner||details.kind!==kind)throw new Error('OAUTH_CONSENT_UNAVAILABLE');
+        const {data,error}=await (approve?supabase.auth.oauth.approveAuthorization(id,{skipBrowserRedirect:true}):supabase.auth.oauth.denyAuthorization(id,{skipBrowserRedirect:true}));
+        if(error||!data)throw mapError(error,'OAUTH_CONSENT_UNAVAILABLE');
+        const {data:current,error:currentError}=await supabase.auth.getUser();
+        if(currentError||current.user?.id!==owner)throw mapError(currentError,'OAUTH_CONSENT_UNAVAILABLE');
+        return oauthConsentRedirect(data.redirect_url,kind);
+      },
     },
     hubOAuth:{
       async details(id){
