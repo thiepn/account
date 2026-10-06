@@ -13,7 +13,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: account-production
+  group: account-production-main
   cancel-in-progress: false
 
 jobs:
