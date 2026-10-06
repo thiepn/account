@@ -1,8 +1,10 @@
 import {describe,expect,it} from 'vitest';
 import {
   firstPartyOAuthRedirect,
+  firstPartyOAuthRedirectTarget,
   firstPartyOAuthRequest,
   parseFirstPartyOAuthRegistration,
+  parseFirstPartyOAuthResolvedRegistration,
 } from './firstPartyOAuth';
 
 const OWNER='11111111-1111-4111-8111-111111111111';
@@ -54,6 +56,35 @@ describe('THIEPN first-party OAuth boundary',()=>{
       redirectUri:REDIRECT,
       automaticIdentityConsent:true,
     },request)).toThrow('FIRST_PARTY_OAUTH_UNAVAILABLE');
+  });
+
+
+  it('handles the already-consented redirect fast path without losing registry validation',()=>{
+    const success=REDIRECT+'?code=one-use-code&state=opaque-state';
+    expect(firstPartyOAuthRedirectTarget(success)).toBe(REDIRECT);
+    expect(parseFirstPartyOAuthResolvedRegistration({
+      clientId:CLIENT,
+      appSlug:'library',
+      appName:'Library',
+      clientName:'THIEPN Library',
+      clientUri:'https://thiepn.dev/library/',
+      redirectUri:REDIRECT,
+      automaticIdentityConsent:true,
+    },REDIRECT)).toMatchObject({
+      clientId:CLIENT,
+      appSlug:'library',
+      redirectUri:REDIRECT,
+      automaticIdentityConsent:true,
+    });
+    expect(()=>parseFirstPartyOAuthResolvedRegistration({
+      clientId:CLIENT,
+      appSlug:'library',
+      appName:'Library',
+      clientName:'THIEPN Library',
+      clientUri:'https://thiepn.dev/library/',
+      redirectUri:'https://evil.test/callback',
+      automaticIdentityConsent:true,
+    },REDIRECT)).toThrow('FIRST_PARTY_OAUTH_UNAVAILABLE');
   });
 
   it('accepts only an exact registered callback carrying OAuth result fields',()=>{
