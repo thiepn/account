@@ -1,0 +1,273 @@
+name: P12 Account SSO Production Burn-In
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy Account"]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: account-p12-production-burn-in
+  cancel-in-progress: true
+
+jobs:
+  burn-in:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ACCOUNT_URL: https://account.thiepn.dev
+      ACCOUNT_ISSUER: https://hycegznamzjhwinegaai.supabase.co/auth/v1
+      LIBRARY_URL: https://thiepn.dev/library/
+      LANGUAGES_URL: https://languages.thiepn.dev/
+      JAPANESE_URL: https://thiepn.dev/japanese/
+      LIBRARY_CLIENT_ID: 76e41661-f8a9-4181-b8b9-4084f2e2acbf
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Verify Account OAuth discovery contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const issuer = process.env.ACCOUNT_ISSUER.replace(/\/$/, "");
+          const discoveryUrl =
+            new URL(issuer).origin +
+            "/.well-known/oauth-authorization-server/auth/v1";
+
+          const response = await fetch(discoveryUrl, {
+            redirect: "error",
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!response.ok) {
+            throw new Error(`OAuth discovery failed: ${response.status}`);
+          }
+
+          const metadata = await response.json();
+          const exact = {
+            issuer,
+            authorization_endpoint: issuer + "/oauth/authorize",
+            token_endpoint: issuer + "/oauth/token",
+          };
+          for (const [key, expected] of Object.entries(exact)) {
+            if (metadata[key] !== expected) {
+              throw new Error(`${key} mismatch: ${metadata[key]}`);
+            }
+          }
+
+          for (const scope of ["openid", "email", "profile", "offline_access"]) {
+            if (!metadata.scopes_supported?.includes(scope)) {
+              throw new Error(`OAuth discovery missing scope: ${scope}`);
+            }
+          }
+          if (!metadata.code_challenge_methods_supported?.includes("S256")) {
+            throw new Error("OAuth discovery does not advertise PKCE S256");
+          }
+          if (
+            !metadata.grant_types_supported?.includes("authorization_code") ||
+            !metadata.grant_types_supported?.includes("refresh_token")
+          ) {
+            throw new Error("OAuth discovery is missing code/refresh grants");
+          }
+          if (!metadata.token_endpoint_auth_methods_supported?.includes("none")) {
+            throw new Error("OAuth public-client exchange is unavailable");
+          }
+
+          console.log("Account OAuth discovery contract passed");
+          NODE
+
+      - name: Verify Account publication and deterministic routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account = process.env.ACCOUNT_URL.replace(/\/$/, "");
+
+          const releaseResponse = await fetch(account + "/release.json", {
+            redirect: "error",
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!releaseResponse.ok) {
+            throw new Error(`release.json failed: ${releaseResponse.status}`);
+          }
+          const release = await releaseResponse.json();
+          if (release.product !== "THIEPN Account") {
+            throw new Error(`Unexpected release product: ${release.product}`);
+          }
+          if (release.serviceMode !== "real") {
+            throw new Error(`Unexpected service mode: ${release.serviceMode}`);
+          }
+          if (release.canonicalOrigin !== account) {
+            throw new Error(
+              `Canonical origin mismatch: ${release.canonicalOrigin}`,
+            );
+          }
+          if (!/^[0-9a-f]{40}$/i.test(release.commit ?? "")) {
+            throw new Error("release.json does not contain a Git commit SHA");
+          }
+
+          for (const route of [
+            "/",
+            "/oauth/consent",
+            "/sso/probe",
+            "/languages/entry",
+            "/japanese/entry",
+          ]) {
+            const response = await fetch(account + route, {
+              redirect: "error",
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (!response.ok) {
+              throw new Error(`Account route ${route} failed: ${response.status}`);
+            }
+          }
+
+          console.log("Account publication contract passed:", release.commit);
+          NODE
+
+      - name: Verify live cross-product SSO surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { chromium } from "@playwright/test";
+
+          const browser = await chromium.launch({ headless: true });
+          try {
+            const context = await browser.newContext();
+            const account = process.env.ACCOUNT_URL.replace(/\/$/, "");
+
+            for (const target of [
+              process.env.LIBRARY_URL,
+              process.env.LANGUAGES_URL,
+              process.env.JAPANESE_URL,
+            ]) {
+              const page = await context.newPage();
+              const response = await page.goto(target, {
+                waitUntil: "domcontentloaded",
+                timeout: 30_000,
+              });
+              if (!response || !response.ok()) {
+                throw new Error(
+                  `Cross-product page failed: ${target} -> ${response?.status() ?? "no response"}`,
+                );
+              }
+              const body = (await page.locator("body").innerText()).trim();
+              if (!body) throw new Error(`Cross-product page rendered empty: ${target}`);
+              await page.close();
+            }
+
+            const languagesEntry = await context.newPage();
+            await languagesEntry.goto(account + "/languages/entry", {
+              waitUntil: "networkidle",
+              timeout: 30_000,
+            });
+            if (
+              !(await languagesEntry
+                .getByRole("heading", {
+                  name: "This Languages sign-in request is invalid.",
+                  exact: true,
+                })
+                .isVisible()
+                .catch(() => false))
+            ) {
+              throw new Error("Languages Account entry boundary is not rendering");
+            }
+            await languagesEntry.close();
+
+            const japaneseEntry = await context.newPage();
+            await japaneseEntry.goto(account + "/japanese/entry", {
+              waitUntil: "networkidle",
+              timeout: 30_000,
+            });
+            if (
+              !(await japaneseEntry
+                .getByRole("heading", {
+                  name: "This Japanese sign-in request is invalid.",
+                  exact: true,
+                })
+                .isVisible()
+                .catch(() => false))
+            ) {
+              throw new Error("Japanese Account entry boundary is not rendering");
+            }
+            await japaneseEntry.close();
+
+            const library = await context.newPage();
+            await library.goto(process.env.LIBRARY_URL, {
+              waitUntil: "domcontentloaded",
+              timeout: 30_000,
+            });
+
+            const probe = await library.evaluate(
+              async ({ accountUrl, clientId }) =>
+                await new Promise((resolve, reject) => {
+                  const accountOrigin = new URL(accountUrl).origin;
+                  const timeout = window.setTimeout(() => {
+                    cleanup();
+                    reject(new Error("Timed out waiting for Account SSO probe"));
+                  }, 10_000);
+
+                  const iframe = document.createElement("iframe");
+                  iframe.hidden = true;
+
+                  function cleanup() {
+                    window.clearTimeout(timeout);
+                    window.removeEventListener("message", onMessage);
+                    iframe.remove();
+                  }
+
+                  function onMessage(event) {
+                    if (event.origin !== accountOrigin) return;
+                    const data = event.data;
+                    if (
+                      !data ||
+                      data.type !== "thiepn:sso-probe:v1" ||
+                      data.clientId !== clientId
+                    ) {
+                      return;
+                    }
+                    cleanup();
+                    resolve(data);
+                  }
+
+                  window.addEventListener("message", onMessage);
+                  iframe.src =
+                    accountUrl +
+                    "/sso/probe?client_id=" +
+                    encodeURIComponent(clientId);
+                  document.body.appendChild(iframe);
+                }),
+              {
+                accountUrl: account,
+                clientId: process.env.LIBRARY_CLIENT_ID,
+              },
+            );
+
+            if (probe.signedIn !== false) {
+              throw new Error("Fresh burn-in browser unexpectedly has an Account session");
+            }
+            if (probe.eligible !== true) {
+              throw new Error("Library first-party SSO probe is not eligible");
+            }
+
+            console.log("Cross-product SSO probe passed", probe);
+            await context.close();
+          } finally {
+            await browser.close();
+          }
+          NODE
