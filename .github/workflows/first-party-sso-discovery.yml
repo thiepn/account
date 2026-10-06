@@ -6,7 +6,7 @@ on:
       - "src/account/api/firstPartyOAuth.ts"
       - "src/account/api/ApiAccountService.ts"
       - "src/app/App.tsx"
-      - "supabase/migrations/*first_party_sso*.sql"
+      - "supabase/migrations/*first_party*.sql"
       - ".github/workflows/first-party-sso-discovery.yml"
   workflow_dispatch:
 
