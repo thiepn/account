@@ -42,9 +42,9 @@ The hook may be enabled in **Authentication → Hooks → Custom Access Token** 
 
 ## Final OAuth activation order
 
-1. Deploy and verify `https://finance.thiepn.dev/api/mcp` and protected-resource metadata.
-2. Enable the THIEPN Account OAuth 2.1 server with authorization path `/oauth/consent`. Prefer dynamic client registration for MCP clients when supported by the connecting ChatGPT configuration.
-3. Obtain the actual Finance MCP OAuth client UUID created/registered for the ChatGPT connection.
+1. Finance production hosting and protected-resource metadata are qualified at `https://finance.thiepn.dev/api/mcp`.
+2. THIEPN Account OAuth 2.1 discovery is live and advertises DCR, PKCE S256, authorization-code + refresh grants, public-client token exchange and `offline_access`.
+3. Create the actual Finance MCP connection in a supported ChatGPT custom-MCP surface and obtain the DCR-generated OAuth client UUID.
 4. Bind that UUID in `private.finance_mcp_oauth_clients`.
 5. Put the same UUID in Finance server variable `THIEPN_FINANCE_MCP_CLIENT_IDS`.
 6. Enable `public.thiepn_account_access_token_hook(jsonb)` as the Custom Access Token hook.
@@ -54,3 +54,17 @@ The hook may be enabled in **Authentication → Hooks → Custom Access Token** 
 10. Verify the MCP resource rejects wrong-client, wrong-resource, and insufficient-scope tokens before real-user qualification.
 
 Do not pre-populate a guessed ChatGPT client UUID and do not enable the hook or Finance consent flag before the Finance deployment and real OAuth client are available.
+
+
+## Hosted DCR qualification — 2026-10-07
+
+The public THIEPN Account `registration_endpoint` was exercised with a disposable public OAuth client using:
+
+- authorization-code + refresh-token grants;
+- token endpoint authentication method `none`;
+- ChatGPT callback-ID-shaped HTTPS redirect;
+- Finance as the client URI.
+
+THIEPN Account returned HTTP `201` with a dynamically generated UUID client id. The disposable client was then deleted and production was verified to contain zero rows for that fixture in both `auth.oauth_clients` and `private.finance_mcp_oauth_clients`.
+
+This proves the hosted DCR path before the real ChatGPT connection is created. Do not pre-register or guess the real ChatGPT client id; use the id created by the actual ChatGPT connection.
