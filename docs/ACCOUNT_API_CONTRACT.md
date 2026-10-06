@@ -101,6 +101,10 @@ Real Account app state is backed by:
 - `account_app_connections`
 - `account_app_grants`
 
+`account_apps.product_url` is the canonical HTTPS launch target. It is intentionally independent of the legacy `path` field so first-party products may live on dedicated origins such as `https://languages.thiepn.dev/` without fabricating a `thiepn.dev/<path>` deployment.
+
+Languages is registered as the Core `languages` app with required `identity.basic` only. Its dashboard projections remain producer-owned and Core-mediated; registering the shell does not grant private French/Japanese data permissions.
+
 Authenticated clients may SELECT registry metadata and their own connection/grant rows through RLS.
 
 Writes are not granted directly. Account mutations use owner-scoped RPCs:
