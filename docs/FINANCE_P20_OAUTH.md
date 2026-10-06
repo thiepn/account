@@ -28,4 +28,4 @@ The Finance consent page states that ChatGPT receives only read-only Finance MCP
 
 Merging this code does not enable OAuth by itself. Hosted THIEPN Account must have its OAuth 2.1 authorization-server configuration enabled and point its authorization path to /oauth/consent.
 
-Keep VITE_FINANCE_MCP_OAUTH_ENABLED unset until that hosted configuration and the Finance MCP deployment are ready for qualification.
+The production Pages workflow reads the repository variable `VITE_FINANCE_MCP_OAUTH_ENABLED` into the build. Leave that variable unset (or any value other than `staged-v1`) until the hosted OAuth Server configuration and Finance MCP deployment are ready. Activation then requires only setting the repository variable to `staged-v1` and running/allowing the normal Account deployment; no code edit is required.
