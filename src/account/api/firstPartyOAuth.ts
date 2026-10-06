@@ -4,7 +4,6 @@ export interface FirstPartyOAuthRequest {
   authorizationId:string;
   owner:string;
   clientId:string;
-  clientUri:string;
   redirectUri:string;
   scope:string;
 }
@@ -50,7 +49,6 @@ export function firstPartyOAuthRequest(raw:unknown,id:string,owner:string):First
     authorizationId:id,
     owner,
     clientId:client.id,
-    clientUri:exactHttpsUrl(client.uri,'FIRST_PARTY_OAUTH_UNAVAILABLE'),
     redirectUri:exactHttpsUrl(value.redirect_uri,'FIRST_PARTY_OAUTH_UNAVAILABLE'),
     scope:value.scope.trim(),
   };
@@ -93,10 +91,8 @@ export function parseFirstPartyOAuthRegistration(
   request:FirstPartyOAuthRequest,
 ):FirstPartyOAuthRegistration{
   const registration=parseFirstPartyOAuthResolvedRegistration(raw,request.redirectUri);
-  if(
-    registration.clientId!==request.clientId||
-    registration.clientUri!==request.clientUri
-  )throw new Error('FIRST_PARTY_OAUTH_UNAVAILABLE');
+  if(registration.clientId!==request.clientId)
+    throw new Error('FIRST_PARTY_OAUTH_UNAVAILABLE');
   return registration;
 }
 
