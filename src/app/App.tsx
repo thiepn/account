@@ -5,6 +5,7 @@ import { HubEntryPage } from "../pages/HubEntryPage";
 import { HubConnectionsPage } from "../pages/HubConnectionsPage";
 import {HUB_SHARING_ENABLED} from './features';
 import {OAuthConsentPage} from '../pages/OAuthConsentPage';
+import {SsoProbePage} from '../pages/SsoProbePage';
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuthState } from "../account/hooks";
 import { AccountShell } from "../components/layout/AccountShell";
@@ -26,6 +27,7 @@ export function App(){return <AppErrorBoundary><Routes>
   <Route path="/auth/sign-in" element={<SignInPage/>}/>
   <Route path="/auth/callback" element={<AuthCallbackPage/>}/>
   <Route path="/auth/error" element={<AuthErrorPage/>}/>
+  <Route path="/sso/probe" element={<SsoProbePage/>}/>
   <Route element={<ProtectedAccount/>}>
     <Route path="/oauth/consent" element={<OAuthConsentPage/>}/>
     <Route path="/hub/tms60" element={import.meta.env.VITE_HUB_TMS60_ENABLED==='staged-v1'?<HubTmsConnectionsPage/>:<p>TMS60 sharing is not available yet.</p>}/>
