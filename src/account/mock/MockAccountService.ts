@@ -105,6 +105,19 @@ export function createMockAccountService():AccountService{
   });
 
   return {
+    ssoProbe:{
+      async check(clientId){
+        return{
+          signedIn:state.auth==="signed-in",
+          registration:{
+            clientId,
+            appSlug:"library",
+            origin:"https://thiepn.dev",
+            eligible:true,
+          },
+        };
+      },
+    },
     auth:{async getState(){await delay(120);return state.auth;},async signIn(returnTo){await delay(300);state={...state,auth:"signed-in"};persist();if(returnTo)sessionStorage.setItem("thiepn.account.returnTo",returnTo);return {redirecting:false};},async completeCallback(){return sessionStorage.getItem("thiepn.account.returnTo")??"/";},async isRecentlyAuthenticated(){return true;},async reauthenticate(){return {redirecting:false};},async signOut(){await delay(220);state={...state,auth:"signed-out"};persist();},subscribe(){return ()=>{};}},
     profile:{async getProfile(){await delay();return {...state.profile};},async updateProfile(input){mutationGuard();await delay(420);state={...state,profile:{...state.profile,displayName:input.displayName.trim(),preferredLanguage:input.preferredLanguage,timezone:input.timezone}};addEvent({type:"PROFILE_UPDATED",category:"account",severity:"info",title:"Profile updated",description:"Your THIEPN Account profile was updated."});persist();return {...state.profile};}},
     security:{async getSummary(){await delay();return security();},async listActivity(){await delay();return [...state.securityEvents];},async getEvent(id){await delay();return state.securityEvents.find((event)=>event.id===id)??null;}},
