@@ -2,9 +2,9 @@ name: Register Languages OAuth Client Once
 # One-shot production registration; remove after the client ID is pinned.
 
 on:
-  push:
+  pull_request:
     branches:
-      - register-languages-oauth-once
+      - main
 
 permissions:
   contents: read
