@@ -330,6 +330,8 @@ async function loadRealDataInventory(supabase:ReturnType<typeof getAccountSupaba
         appName:"Library",
         namespaceId:"library:default",
         namespaceStatus:fileInventory.data.namespaceStatus,
+        revision:undefined,
+        schemaVersion:undefined,
         storageBytes:fileInventory.data.storageBytes,
         storageApproximate:true,
         recordCount:fileInventory.data.objectCount,
