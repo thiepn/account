@@ -1,0 +1,92 @@
+name: Finance P20 OAuth Production Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oauth-discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify THIEPN Account OAuth server discovery
+        shell: bash
+        env:
+          ACCOUNT_ISSUER: https://hycegznamzjhwinegaai.supabase.co/auth/v1
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const issuer = process.env.ACCOUNT_ISSUER;
+          if (!issuer) throw new Error("ACCOUNT_ISSUER missing");
+
+          const discoveryUrl =
+            issuer.replace(/\/$/, "") + "/.well-known/oauth-authorization-server";
+          const response = await fetch(discoveryUrl, {
+            redirect: "error",
+            signal: AbortSignal.timeout(10_000),
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `THIEPN Account OAuth discovery failed: ${response.status}`,
+            );
+          }
+
+          const metadata = await response.json();
+          const base = issuer.replace(/\/$/, "");
+
+          if (metadata.issuer !== base) {
+            throw new Error(`OAuth issuer mismatch: ${metadata.issuer}`);
+          }
+          if (metadata.authorization_endpoint !== base + "/oauth/authorize") {
+            throw new Error("OAuth authorization endpoint mismatch");
+          }
+          if (metadata.token_endpoint !== base + "/oauth/token") {
+            throw new Error("OAuth token endpoint mismatch");
+          }
+          if (metadata.registration_endpoint !== base + "/oauth/clients/register") {
+            throw new Error(
+              "OAuth DCR is not enabled; ChatGPT cannot register a Finance client",
+            );
+          }
+          if (
+            !Array.isArray(metadata.code_challenge_methods_supported) ||
+            !metadata.code_challenge_methods_supported.includes("S256")
+          ) {
+            throw new Error("OAuth discovery does not advertise PKCE S256");
+          }
+          if (
+            !Array.isArray(metadata.grant_types_supported) ||
+            !metadata.grant_types_supported.includes("authorization_code") ||
+            !metadata.grant_types_supported.includes("refresh_token")
+          ) {
+            throw new Error("OAuth discovery is missing code/refresh grants");
+          }
+          if (
+            !Array.isArray(metadata.token_endpoint_auth_methods_supported) ||
+            !metadata.token_endpoint_auth_methods_supported.includes("none")
+          ) {
+            throw new Error("OAuth public-client token exchange is unavailable");
+          }
+
+          const expectedScopes = ["openid", "email", "profile", "offline_access"];
+          for (const scope of expectedScopes) {
+            if (
+              !Array.isArray(metadata.scopes_supported) ||
+              !metadata.scopes_supported.includes(scope)
+            ) {
+              throw new Error(`OAuth discovery is missing scope: ${scope}`);
+            }
+          }
+
+          if (metadata.authorization_response_iss_parameter_supported === true) {
+            throw new Error(
+              "OAuth server now advertises RFC 9207 stable-callback support; review the Finance consent redirect allowlist before activation",
+            );
+          }
+
+          console.log("THIEPN Account Finance P20 OAuth discovery smoke passed");
+          console.log("Callback mode: ChatGPT callback-ID-specific redirect");
+          NODE
