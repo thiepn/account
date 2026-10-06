@@ -49,7 +49,8 @@ The hook may be enabled in **Authentication → Hooks → Custom Access Token** 
 5. Put the same UUID in Finance server variable `THIEPN_FINANCE_MCP_CLIENT_IDS`.
 6. Enable `public.thiepn_account_access_token_hook(jsonb)` as the Custom Access Token hook.
 7. Set Account repository variable `VITE_FINANCE_MCP_OAUTH_ENABLED=staged-v1` and deploy Account.
-8. Start a fresh OAuth authorization so the issued access token contains the Finance resource binding.
-9. Verify the MCP resource rejects wrong-client and wrong-resource tokens before real-user qualification.
+8. Run the manual **Finance P20 OAuth Production Smoke** workflow and require a green result. It checks issuer equality, DCR, PKCE S256, authorization-code + refresh grants, public-client token exchange, the full scope set, and the expected callback mode.
+9. Start a fresh OAuth authorization so the issued access token contains the Finance resource binding.
+10. Verify the MCP resource rejects wrong-client, wrong-resource, and insufficient-scope tokens before real-user qualification.
 
 Do not pre-populate a guessed ChatGPT client UUID and do not enable the hook or Finance consent flag before the Finance deployment and real OAuth client are available.
