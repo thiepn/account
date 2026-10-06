@@ -2,8 +2,8 @@ import {HubTmsConnectionsPage} from '../pages/HubTmsConnectionsPage';
 import { LanguagesEntryPage } from "../pages/LanguagesEntryPage";
 import { HubEntryPage } from "../pages/HubEntryPage";
 import { HubConnectionsPage } from "../pages/HubConnectionsPage";
-import {HUB_SHARING_ENABLED,HUB_OAUTH_ENABLED} from './features';
-import {HubOAuthPage} from '../pages/HubOAuthPage';
+import {ACCOUNT_OAUTH_ENABLED,HUB_SHARING_ENABLED} from './features';
+import {OAuthConsentPage} from '../pages/OAuthConsentPage';
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuthState } from "../account/hooks";
 import { AccountShell } from "../components/layout/AccountShell";
@@ -25,7 +25,7 @@ export function App(){return <AppErrorBoundary><Routes>
   <Route path="/auth/callback" element={<AuthCallbackPage/>}/>
   <Route path="/auth/error" element={<AuthErrorPage/>}/>
   <Route element={<ProtectedAccount/>}>
-    <Route path="/oauth/consent" element={HUB_OAUTH_ENABLED?<HubOAuthPage/>:<p>Hub authorization is not available yet.</p>}/>
+    <Route path="/oauth/consent" element={ACCOUNT_OAUTH_ENABLED?<OAuthConsentPage/>:<p>OAuth authorization is not available yet.</p>}/>
     <Route path="/hub/tms60" element={import.meta.env.VITE_HUB_TMS60_ENABLED==='staged-v1'?<HubTmsConnectionsPage/>:<p>TMS60 sharing is not available yet.</p>}/>
     <Route path="/hub/connections" element={HUB_SHARING_ENABLED?<HubConnectionsPage/>:<p>Hub sharing is not available yet.</p>}/>
     <Route path="/" element={<OverviewPage/>}/>
