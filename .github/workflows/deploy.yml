@@ -92,12 +92,14 @@ jobs:
           fi
           grep -R -q 'hycegznamzjhwinegaai.supabase.co' dist
           grep -R -q 'https://account.thiepn.dev' dist
-      - name: Add release metadata and deterministic Japanese entry route
+      - name: Add release metadata and deterministic auth routes
         shell: bash
         run: |
           cp dist/index.html dist/404.html
-          mkdir -p dist/japanese/entry
+          mkdir -p dist/japanese/entry dist/oauth/consent dist/sso/probe
           cp dist/index.html dist/japanese/entry/index.html
+          cp dist/index.html dist/oauth/consent/index.html
+          cp dist/index.html dist/sso/probe/index.html
           version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
           cat > dist/release.json <<EOF
           {
@@ -218,6 +220,18 @@ jobs:
           }
 
           console.log("Production Account rendered successfully:", bodyText.slice(0,500));
+
+          for (const route of ["/oauth/consent", "/sso/probe"]) {
+            const routePage = await browser.newPage();
+            const routeResponse = await routePage.goto("https://account.thiepn.dev" + route, {
+              waitUntil: "networkidle",
+              timeout: 30000,
+            });
+            if (!routeResponse || routeResponse.status() !== 200) {
+              throw new Error(`Account route ${route} did not return 200: ${routeResponse?.status() ?? "no response"}`);
+            }
+            await routePage.close();
+          }
 
           const japaneseEntry = await browser.newPage();
           const japaneseEntryResponse = await japaneseEntry.goto("https://account.thiepn.dev/japanese/entry", {
