@@ -19,20 +19,24 @@ describe('first-party SSO probe boundary',()=>{
       clientId:CLIENT,
       appSlug:'library',
       origin:'https://thiepn.dev',
+      eligible:true,
     },CLIENT)).toEqual({
       clientId:CLIENT,
       appSlug:'library',
       origin:'https://thiepn.dev',
+      eligible:true,
     });
     expect(()=>parseSsoProbeRegistration({
       clientId:CLIENT,
       appSlug:'library',
       origin:'https://thiepn.dev/library',
+      eligible:true,
     },CLIENT)).toThrow('SSO_PROBE_INVALID');
     expect(()=>parseSsoProbeRegistration({
       clientId:'11111111-1111-4111-8111-111111111111',
       appSlug:'library',
       origin:'https://thiepn.dev',
+      eligible:true,
     },CLIENT)).toThrow('SSO_PROBE_INVALID');
   });
 
