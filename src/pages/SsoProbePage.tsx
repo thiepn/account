@@ -1,13 +1,13 @@
 import {useEffect} from 'react';
-import {getAccountSupabaseClient} from '../account/api/supabase';
 import {
   THIEPN_SSO_PROBE_MESSAGE,
-  parseSsoProbeRegistration,
   referrerOrigin,
   ssoProbeClientId,
 } from '../account/api/ssoProbe';
+import {useAccountService} from '../account/context';
 
 export function SsoProbePage(){
+  const service=useAccountService();
   useEffect(()=>{
     let active=true;
     void (async()=>{
@@ -22,44 +22,27 @@ export function SsoProbePage(){
         return;
       }
 
-      const supabase=getAccountSupabaseClient();
-      const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
-      if(!active||sessionError)return;
-
-      let signedIn=false;
-      if(sessionData.session){
-        const {data:userData,error:userError}=await supabase.auth.getUser();
-        if(!active||userError)return;
-        signedIn=Boolean(userData.user&&!userData.user.is_anonymous);
-      }
-
-      const {data:resolved,error:resolveError}=await supabase.rpc(
-        'resolve_thiepn_first_party_sso_probe',
-        {p_client_id:clientId},
-      );
-      if(!active||resolveError||!resolved)return;
-
-      let registration;
+      let result;
       try{
-        registration=parseSsoProbeRegistration(resolved,clientId);
+        result=await service.ssoProbe.check(clientId);
       }catch{
         return;
       }
-      if(parentOrigin!==registration.origin)return;
+      if(!active||parentOrigin!==result.registration.origin)return;
 
       window.parent.postMessage(
         {
           type:THIEPN_SSO_PROBE_MESSAGE,
           clientId,
-          signedIn,
-          eligible:registration.eligible,
+          signedIn:result.signedIn,
+          eligible:result.registration.eligible,
         },
-        registration.origin,
+        result.registration.origin,
       );
     })();
 
     return()=>{active=false;};
-  },[]);
+  },[service]);
 
   return <main aria-hidden="true" className="min-h-dvh bg-transparent"/>;
 }
