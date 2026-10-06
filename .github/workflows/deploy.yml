@@ -61,6 +61,7 @@ jobs:
       VITE_ACCOUNT_CANONICAL_ORIGIN: https://account.thiepn.dev
       VITE_SUPABASE_URL: https://hycegznamzjhwinegaai.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_1rZzRPzfLMaAH5pIgCwIjA_19UPMIsR
+      VITE_FINANCE_MCP_OAUTH_ENABLED: ${{ vars.VITE_FINANCE_MCP_OAUTH_ENABLED }}
     steps:
       - name: Resolve release SHA
         id: release
