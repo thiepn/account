@@ -91,10 +91,12 @@ jobs:
           fi
           grep -R -q 'hycegznamzjhwinegaai.supabase.co' dist
           grep -R -q 'https://account.thiepn.dev' dist
-      - name: Add release metadata and SPA deep-link fallback
+      - name: Add release metadata and deterministic Japanese entry route
         shell: bash
         run: |
           cp dist/index.html dist/404.html
+          mkdir -p dist/japanese/entry
+          cp dist/index.html dist/japanese/entry/index.html
           version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
           cat > dist/release.json <<EOF
           {
@@ -215,6 +217,20 @@ jobs:
           }
 
           console.log("Production Account rendered successfully:", bodyText.slice(0,500));
+
+          const japaneseEntry = await browser.newPage();
+          const japaneseEntryResponse = await japaneseEntry.goto("https://account.thiepn.dev/japanese/entry", {
+            waitUntil: "networkidle",
+            timeout: 30000,
+          });
+          if (!japaneseEntryResponse || japaneseEntryResponse.status() !== 200) {
+            throw new Error(`Japanese Account entry did not return 200: ${japaneseEntryResponse?.status() ?? "no response"}`);
+          }
+          const invalidJapaneseRequest = japaneseEntry.getByRole("heading", {name:"This Japanese sign-in request is invalid.", exact:true});
+          if (!(await invalidJapaneseRequest.isVisible().catch(()=>false))) {
+            throw new Error("Japanese Account entry route did not render its expected boundary.");
+          }
+          await japaneseEntry.close();
 
           if (await signIn.isVisible().catch(()=>false)) {
             const requestPromise = page.waitForRequest(request =>
