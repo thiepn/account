@@ -35,11 +35,11 @@ The production Pages workflow reads the repository variable `VITE_FINANCE_MCP_OA
 
 The Finance MCP resource identifier is fixed to `https://finance.thiepn.dev/api/mcp`.
 
-Migration `20261006202143_finance_p20_oauth_resource_binding_hook.sql` stages a private OAuth-client binding table and a custom access-token hook. The binding table starts empty. The hook is not enabled by this migration, and non-bound Account/Hub sessions keep their existing audience unchanged.
+Migration `20261006202143_finance_p20_oauth_resource_binding_hook.sql` introduced the staged hook boundary. Migration `20261007070212_finance_p20_automatic_dcr_session_binding.sql` supersedes manual client binding with automatic per-session DCR binding. The legacy client table remains only for migration compatibility and is not used by the public plugin flow.
 
-For an explicitly bound Finance MCP OAuth client, the hook sets both `aud` and `resource` to the canonical Finance MCP resource. Finance must independently require the same resource together with the approved `client_id`; this prevents a valid THIEPN Account OAuth token issued for another application from being replayed against Finance.
+The hook sets both `aud` and `resource` to the canonical Finance MCP resource only for an approved ChatGPT Finance OAuth session. Account/Hub tokens and unrelated OAuth sessions keep their existing audience unchanged.
 
-The hook may be enabled in **Authentication → Hooks → Custom Access Token** only after the real Finance MCP OAuth client exists and its UUID has been inserted into `private.finance_mcp_oauth_clients`.
+Enable the hook once in **Authentication → Hooks → Custom Access Token** after the automatic-session migration is deployed. No ChatGPT client UUID needs to be copied into Supabase or Vercel.
 
 ## Automatic public-plugin DCR binding
 
@@ -67,4 +67,4 @@ This lets ChatGPT DCR scale across public plugin installs without weakening the 
 6. Start a fresh OAuth authorization. The Account hook automatically creates the Finance session binding and issues a resource-bound token.
 7. Verify the MCP resource rejects wrong-resource and insufficient-scope tokens before real-user qualification.
 
-Do not pre-populate a guessed ChatGPT client UUID and do not enable the hook or Finance consent flag before the Finance deployment and real OAuth client are available.
+Do not pre-populate ChatGPT client UUIDs. Public plugin DCR registration is automatic; the Finance deployment and Account hook/consent boundary must be live before real-user qualification.
