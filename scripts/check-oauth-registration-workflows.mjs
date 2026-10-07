@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const WORKFLOW_DIR = path.resolve(".github/workflows");
-const DCR_ENDPOINT_RE = /\bregistration_endpoint\b|\/oauth\/clients\/register\b/;
+const DCR_ENDPOINT_RE = /\bregistration[_A-Za-z]*endpoint\b|\/oauth\/clients\/register\b/i;
 const HTTP_POST_RE = /\bmethod\s*:\s*["']POST["']/;
 const MANUAL_TRIGGER_RE = /\bworkflow_dispatch\b/;
 const AUTO_TRIGGER_RE =
