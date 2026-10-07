@@ -79,7 +79,9 @@ begin
          and authz.status::text = 'approved'
          and authz.resource = finance_resource
          and authz.expires_at > pg_catalog.now()
-         and authz.redirect_uri ~ '^https://chatgpt[.]com/connector/oauth/[A-Za-z0-9._~-]+$'\n         and pg_catalog.char_length(authz.redirect_uri) between 37 and 292\n         and client.deleted_at is null
+         and authz.redirect_uri ~ '^https://chatgpt[.]com/connector/oauth/[A-Za-z0-9._~-]+$'
+         and pg_catalog.char_length(authz.redirect_uri) between 37 and 292
+         and client.deleted_at is null
          and client.registration_type::text = 'dynamic'
          and client.client_type::text = 'public'
          and client.token_endpoint_auth_method = 'none'
