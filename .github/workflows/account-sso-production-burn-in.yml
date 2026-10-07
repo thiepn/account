@@ -1,6 +1,9 @@
 name: Account SSO Production Burn-In
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/account-sso-production-burn-in.yml"
   workflow_dispatch:
   workflow_run:
     workflows: ["Deploy Account"]
@@ -97,14 +100,47 @@ jobs:
           set -euo pipefail
           node --input-type=module <<'NODE'
           const account = process.env.ACCOUNT_URL.replace(/\/$/, "");
+          const accountOrigin = new URL(account).origin;
+          const redirectStatuses = new Set([301, 302, 303, 307, 308]);
 
-          const releaseResponse = await fetch(account + "/release.json", {
-            redirect: "error",
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (!releaseResponse.ok) {
-            throw new Error(`release.json failed: ${releaseResponse.status}`);
+          async function fetchAccountPath(path) {
+            let url = new URL(path, account + "/");
+            for (let redirects = 0; redirects <= 5; redirects += 1) {
+              const response = await fetch(url, {
+                redirect: "manual",
+                signal: AbortSignal.timeout(10_000),
+              });
+
+              if (!redirectStatuses.has(response.status)) {
+                if (!response.ok) {
+                  throw new Error(
+                    `Account route ${path} failed: ${response.status}`,
+                  );
+                }
+                return response;
+              }
+
+              const location = response.headers.get("location");
+              if (!location) {
+                throw new Error(
+                  `Account route ${path} returned ${response.status} without Location`,
+                );
+              }
+              const next = new URL(location, url);
+              if (next.origin !== accountOrigin) {
+                throw new Error(
+                  `Account route ${path} redirected off-origin to ${next.href}`,
+                );
+              }
+              console.log(
+                `Account same-origin redirect: ${url.href} -> ${next.href}`,
+              );
+              url = next;
+            }
+            throw new Error(`Account route ${path} exceeded redirect limit`);
           }
+
+          const releaseResponse = await fetchAccountPath("/release.json");
           const release = await releaseResponse.json();
           if (release.product !== "THIEPN Account") {
             throw new Error(`Unexpected release product: ${release.product}`);
@@ -128,13 +164,7 @@ jobs:
             "/languages/entry",
             "/japanese/entry",
           ]) {
-            const response = await fetch(account + route, {
-              redirect: "error",
-              signal: AbortSignal.timeout(10_000),
-            });
-            if (!response.ok) {
-              throw new Error(`Account route ${route} failed: ${response.status}`);
-            }
+            await fetchAccountPath(route);
           }
 
           console.log("Account publication contract passed:", release.commit);
