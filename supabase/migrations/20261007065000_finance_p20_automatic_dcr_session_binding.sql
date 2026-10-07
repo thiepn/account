@@ -71,15 +71,15 @@ begin
   if auth_method = 'oauth_provider/authorization_code' then
     select exists (
       select 1
-        from auth.oauth_authorizations as authorization
+        from auth.oauth_authorizations as authz
         join auth.oauth_clients as client
-          on client.id = authorization.client_id
-       where authorization.client_id = client_uuid
-         and authorization.user_id = user_uuid
-         and authorization.status::text = 'approved'
-         and authorization.resource = finance_resource
-         and authorization.expires_at > pg_catalog.now()
-         and authorization.redirect_uri ~ '^https://chatgpt[.]com/connector/oauth/[A-Za-z0-9._~-]{1,256}$'
+          on client.id = authz.client_id
+       where authz.client_id = client_uuid
+         and authz.user_id = user_uuid
+         and authz.status::text = 'approved'
+         and authz.resource = finance_resource
+         and authz.expires_at > pg_catalog.now()
+         and authz.redirect_uri ~ '^https://chatgpt[.]com/connector/oauth/[A-Za-z0-9._~-]{1,256}$'
          and client.deleted_at is null
          and client.registration_type::text = 'dynamic'
          and client.client_type::text = 'public'
@@ -87,7 +87,7 @@ begin
          and not exists (
            select 1
              from pg_catalog.regexp_split_to_table(
-               pg_catalog.btrim(authorization.scope),
+               pg_catalog.btrim(authz.scope),
                E'\\s+'
              ) as requested(scope)
             where requested.scope not in (
@@ -97,10 +97,10 @@ begin
               'offline_access'
             )
          )
-         and authorization.scope ~ '(^|[[:space:]])openid([[:space:]]|$)'
-         and authorization.scope ~ '(^|[[:space:]])email([[:space:]]|$)'
-         and authorization.scope ~ '(^|[[:space:]])profile([[:space:]]|$)'
-         and authorization.scope ~ '(^|[[:space:]])offline_access([[:space:]]|$)'
+         and authz.scope ~ '(^|[[:space:]])openid([[:space:]]|$)'
+         and authz.scope ~ '(^|[[:space:]])email([[:space:]]|$)'
+         and authz.scope ~ '(^|[[:space:]])profile([[:space:]]|$)'
+         and authz.scope ~ '(^|[[:space:]])offline_access([[:space:]]|$)'
     ) into finance_bound;
 
     if finance_bound then
