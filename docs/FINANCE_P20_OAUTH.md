@@ -29,7 +29,7 @@ The Finance consent page states that ChatGPT receives only read-only Finance MCP
 
 Merging this code does not enable OAuth by itself. Hosted THIEPN Account must have its OAuth 2.1 authorization-server configuration enabled and point its authorization path to /oauth/consent.
 
-The production Pages workflow reads the repository variable `VITE_FINANCE_MCP_OAUTH_ENABLED` into the build. Leave that variable unset (or any value other than `staged-v1`) until the hosted OAuth Server configuration and Finance MCP deployment are ready. Activation then requires only setting the repository variable to `staged-v1` and running/allowing the normal Account deployment; no code edit is required.
+The production Pages workflow now defaults `VITE_FINANCE_MCP_OAUTH_ENABLED` to `staged-v1`. The repository variable remains an emergency override, but normal releases include the strict Finance consent boundary automatically. Because Finance itself requires Account-issued resource-bound tokens, enabling the consent UI does not grant Finance access unless the Custom Access Token hook is also enabled and the authorization satisfies every Finance DCR/resource/scope guard.
 
 ## Finance resource binding
 
@@ -62,7 +62,7 @@ This lets ChatGPT DCR scale across public plugin installs without weakening the 
 1. Deploy and verify `https://finance.thiepn.dev/api/mcp` and protected-resource metadata.
 2. Enable the THIEPN Account OAuth 2.1 server with authorization path `/oauth/consent`. Prefer dynamic client registration for MCP clients when supported by the connecting ChatGPT configuration.
 3. Enable `public.thiepn_account_access_token_hook(jsonb)` as the Custom Access Token hook once for THIEPN Account.
-4. Set Account repository variable `VITE_FINANCE_MCP_OAUTH_ENABLED=staged-v1` and deploy Account.
+4. Deploy Account normally; the production workflow includes `staged-v1` by default.
 5. Run the manual **Finance P20 OAuth Production Smoke** workflow and require a green result. It checks issuer equality, DCR, PKCE S256, authorization-code + refresh grants, public-client token exchange, the full scope set, and the expected callback mode.
 6. Start a fresh OAuth authorization. The Account hook automatically creates the Finance session binding and issues a resource-bound token.
 7. Verify the MCP resource rejects wrong-resource and insufficient-scope tokens before real-user qualification.
