@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: 24
       - run: corepack enable
+      - run: pnpm check:oauth-workflows
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - name: Enforce frontend backend-boundary imports
