@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check:oauth-workflows": "node --test scripts/check-oauth-registration-workflows.test.mjs && node scripts/check-oauth-registration-workflows.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "5.104.0",

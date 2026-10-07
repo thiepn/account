@@ -4,7 +4,7 @@ THIEPN Account is the only upstream interactive login surface for first-party TH
 
 First-party browser applications are registered as public OAuth 2.1 clients in Supabase Auth. They use Authorization Code + PKCE and receive app-scoped access/refresh tokens containing a `client_id`. They do not invoke Google directly.
 
-The Account database separately binds each Supabase OAuth client UUID to one `account_apps.slug`, an exact callback URI, presentation metadata, and an automatic-basic-identity-consent flag. Authorization trusts the client UUID plus exact callback; a client website URI is not treated as an authorization credential. The registry is not directly readable or writable by browser roles.
+The Account database separately binds each Supabase OAuth client UUID to one `account_apps.slug`, an exact callback URI, presentation metadata, and an automatic-basic-identity-consent flag. Authorization trusts the client UUID plus exact callback; a client website URI is not treated as an authorization credential. The registry is not directly readable or writable by browser roles. New production clients must follow the manual-only procedure in [FIRST_PARTY_CLIENT_ONBOARDING.md](./FIRST_PARTY_CLIENT_ONBOARDING.md).
 
 When a registered first-party authorization request reaches `/oauth/consent`:
 

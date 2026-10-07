@@ -98,6 +98,7 @@ See:
 - `docs/SECURITY_INVARIANTS.md`
 - `docs/DATA_LIFECYCLE.md`
 - `docs/SSO_PRODUCTION_BURN_IN.md`
+- `docs/FIRST_PARTY_CLIENT_ONBOARDING.md`
 
 Hub tokenless entry and return contract: [docs/HUB_ENTRY.md](docs/HUB_ENTRY.md).
 
