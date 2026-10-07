@@ -18,10 +18,10 @@ It verifies:
 4. Account's deterministic production routes are published;
 5. Library, Languages and Japanese production surfaces are reachable and render non-empty application shells;
 6. Account's Languages and Japanese entry boundaries reject an empty/invalid request deterministically;
-7. a fresh browser opened on live Library can embed the Account `/sso/probe` route and receive the exact registered Library client response from `https://account.thiepn.dev`;
-8. the fresh browser has no Account session and the registered Library client remains eligible for first-party SSO.
+7. fresh browsers opened on live Library and live Languages can each embed the Account `/sso/probe` route and receive the exact response for their registered client from `https://account.thiepn.dev`;
+8. those fresh browsers have no Account session and both registered clients remain eligible for first-party SSO.
 
-The Library probe test is intentionally cross-origin. It catches regressions in Account routing, the production first-party registry/RPC, referrer/origin binding, frame policy and the `postMessage` contract.
+The Library/Languages probe tests are intentionally cross-origin. It catches regressions in Account routing, the production first-party registry/RPC, referrer/origin binding, frame policy and the `postMessage` contract.
 
 ## What this does not certify
 
@@ -30,10 +30,10 @@ The workflow never stores Google credentials, Account refresh tokens or a long-l
 Before calling the first-party SSO rollout fully accepted, manually verify with a real Account:
 
 - Google sign-in completes on `account.thiepn.dev`;
-- Library attaches through THIEPN Account rather than invoking Google directly;
-- the Library callback completes and the app receives its own app-scoped session;
-- disconnecting Library in Account makes silent SSO ineligible and revokes Library-specific OAuth sessions without signing out the native Account dashboard;
-- an explicit reconnect can restore Library with only required/basic grants;
+- each consumer that has cut over to first-party SSO attaches through THIEPN Account rather than invoking Google directly;
+- its exact registered callback completes and the app receives its own app-scoped session;
+- disconnecting the app in Account makes silent SSO ineligible and revokes only that app's OAuth sessions without signing out the native Account dashboard;
+- an explicit reconnect restores only required/basic grants;
 - account switching and reauthentication preserve same-Account enforcement;
 - the flow works on the intended desktop and mobile browsers.
 
