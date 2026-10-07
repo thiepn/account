@@ -21,3 +21,12 @@ When a registered first-party authorization request reaches `/oauth/consent`:
 Sensitive optional grants remain separate. Automatic SSO never enables Google Drive, personal-file cloud, cross-app private data, or other sensitive capabilities.
 
 Native Account dashboard sessions have no OAuth `client_id`. First-party app tokens do. Control-plane RLS allows an OAuth client to see only the connection, grants, and permission definitions for the app bound to its own client ID. Unknown/delegated clients see none of that state. Disconnecting an app denies its grants and deletes only that app's OAuth Auth sessions; their refresh tokens cascade away, while the native Account dashboard session remains signed in.
+
+## Production client registry
+
+Account currently pins these production first-party public clients:
+
+- Library — `76e41661-f8a9-4181-b8b9-4084f2e2acbf`, callback `https://thiepn.dev/library/auth/callback/`;
+- Languages — `c4522235-beb3-4f48-94fb-e274e92b7c84`, callback `https://languages.thiepn.dev/auth/callback/`.
+
+The Languages registration is Account-side readiness: it makes the client resolvable and eligible through the same strict probe/consent boundary. The Languages product still owns its own cutover to the shared first-party OAuth session flow; Account does not infer that a registered client is already consuming it.
