@@ -30,6 +30,7 @@ jobs:
       LANGUAGES_URL: https://languages.thiepn.dev/
       JAPANESE_URL: https://thiepn.dev/japanese/
       LIBRARY_CLIENT_ID: 76e41661-f8a9-4181-b8b9-4084f2e2acbf
+      LANGUAGES_CLIENT_ID: c4522235-beb3-4f48-94fb-e274e92b7c84
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
@@ -207,65 +208,84 @@ jobs:
             }
             await japaneseEntry.close();
 
-            const library = await context.newPage();
-            await library.goto(process.env.LIBRARY_URL, {
-              waitUntil: "domcontentloaded",
-              timeout: 30_000,
-            });
-
-            const probe = await library.evaluate(
-              async ({ accountUrl, clientId }) =>
-                await new Promise((resolve, reject) => {
-                  const accountOrigin = new URL(accountUrl).origin;
-                  const timeout = window.setTimeout(() => {
-                    cleanup();
-                    reject(new Error("Timed out waiting for Account SSO probe"));
-                  }, 10_000);
-
-                  const iframe = document.createElement("iframe");
-                  iframe.hidden = true;
-
-                  function cleanup() {
-                    window.clearTimeout(timeout);
-                    window.removeEventListener("message", onMessage);
-                    iframe.remove();
-                  }
-
-                  function onMessage(event) {
-                    if (event.origin !== accountOrigin) return;
-                    const data = event.data;
-                    if (
-                      !data ||
-                      data.type !== "thiepn:sso-probe:v1" ||
-                      data.clientId !== clientId
-                    ) {
-                      return;
-                    }
-                    cleanup();
-                    resolve(data);
-                  }
-
-                  window.addEventListener("message", onMessage);
-                  iframe.src =
-                    accountUrl +
-                    "/sso/probe?client_id=" +
-                    encodeURIComponent(clientId);
-                  document.body.appendChild(iframe);
-                }),
+            for (const target of [
               {
-                accountUrl: account,
+                name: "Library",
+                url: process.env.LIBRARY_URL,
                 clientId: process.env.LIBRARY_CLIENT_ID,
               },
-            );
+              {
+                name: "Languages",
+                url: process.env.LANGUAGES_URL,
+                clientId: process.env.LANGUAGES_CLIENT_ID,
+              },
+            ]) {
+              const page = await context.newPage();
+              await page.goto(target.url, {
+                waitUntil: "domcontentloaded",
+                timeout: 30_000,
+              });
 
-            if (probe.signedIn !== false) {
-              throw new Error("Fresh burn-in browser unexpectedly has an Account session");
-            }
-            if (probe.eligible !== true) {
-              throw new Error("Library first-party SSO probe is not eligible");
+              const probe = await page.evaluate(
+                async ({ accountUrl, clientId }) =>
+                  await new Promise((resolve, reject) => {
+                    const accountOrigin = new URL(accountUrl).origin;
+                    const timeout = window.setTimeout(() => {
+                      cleanup();
+                      reject(new Error("Timed out waiting for Account SSO probe"));
+                    }, 10_000);
+
+                    const iframe = document.createElement("iframe");
+                    iframe.hidden = true;
+
+                    function cleanup() {
+                      window.clearTimeout(timeout);
+                      window.removeEventListener("message", onMessage);
+                      iframe.remove();
+                    }
+
+                    function onMessage(event) {
+                      if (event.origin !== accountOrigin) return;
+                      const data = event.data;
+                      if (
+                        !data ||
+                        data.type !== "thiepn:sso-probe:v1" ||
+                        data.clientId !== clientId
+                      ) {
+                        return;
+                      }
+                      cleanup();
+                      resolve(data);
+                    }
+
+                    window.addEventListener("message", onMessage);
+                    iframe.src =
+                      accountUrl +
+                      "/sso/probe?client_id=" +
+                      encodeURIComponent(clientId);
+                    document.body.appendChild(iframe);
+                  }),
+                {
+                  accountUrl: account,
+                  clientId: target.clientId,
+                },
+              );
+
+              if (probe.signedIn !== false) {
+                throw new Error(
+                  `Fresh burn-in browser unexpectedly has an Account session for ${target.name}`,
+                );
+              }
+              if (probe.eligible !== true) {
+                throw new Error(
+                  `${target.name} first-party SSO probe is not eligible`,
+                );
+              }
+
+              console.log(`${target.name} first-party SSO probe passed`, probe);
+              await page.close();
             }
 
-            console.log("Cross-product SSO probe passed", probe);
             await context.close();
           } finally {
             await browser.close();
