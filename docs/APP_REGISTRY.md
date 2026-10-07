@@ -49,3 +49,12 @@ Likewise, Core entries can exist without being Account-connectable products.
 `account_app_connections` and `account_app_grants` are **control-plane records**. They do not by themselves prove which application code is making a backend request.
 
 Actual Core/app data authorization must enforce app identity and granted scope at the trusted data boundary. That remains a later integration requirement; P15 must not claim the control-plane table alone provides it.
+
+
+## Registry invariants
+
+Account-capable products are enforced at the database boundary. If an active manifest declares `capabilities.account=true`, the same app must end the transaction with an active `identity.basic` permission that is required, non-mutable, and classified as `basic`.
+
+The invariant is implemented with deferred constraint triggers on both `account_app_manifests` and `account_app_permissions`. Deferral allows one migration to create/update the manifest and its permissions in either order, while still rejecting an incomplete registry at commit time. Removing or weakening the required identity permission from an existing Account-capable app is rejected for the same reason.
+
+This invariant protects Account control-plane integrity only. It does not imply that the product has already been issued a first-party OAuth client, nor that its backend data path enforces Account grants. Those remain separate rollout and trusted-boundary concerns.
