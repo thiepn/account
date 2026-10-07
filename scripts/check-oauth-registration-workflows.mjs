@@ -3,7 +3,7 @@ import path from "node:path";
 
 const WORKFLOW_DIR = path.resolve(".github/workflows");
 const DCR_ENDPOINT_RE = /\bregistration[_A-Za-z]*endpoint\b|\/oauth\/clients\/register\b/i;
-const HTTP_POST_RE = /\bmethod\s*:\s*["']POST["']/;
+const HTTP_POST_RE = /\bmethod\s*:\s*["']post["']/i;
 const MANUAL_TRIGGER_RE = /\bworkflow_dispatch\b/;
 const AUTO_TRIGGER_RE =
   /\b(?:push|pull_request|pull_request_target|schedule|workflow_run|repository_dispatch)\b/;
