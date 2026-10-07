@@ -4,19 +4,19 @@ import path from "node:path";
 const WORKFLOW_DIR = path.resolve(".github/workflows");
 const DCR_ENDPOINT_RE = /\bregistration_endpoint\b|\/oauth\/clients\/register\b/;
 const HTTP_POST_RE = /\bmethod\s*:\s*["']POST["']/;
-const MANUAL_TRIGGER_RE = /(?:^|\n)\s{2}workflow_dispatch\s*:/;
+const MANUAL_TRIGGER_RE = /\bworkflow_dispatch\b/;
 const AUTO_TRIGGER_RE =
-  /(?:^|\n)\s{2}(?:push|pull_request|pull_request_target|schedule|workflow_run|repository_dispatch)\s*:/;
+  /\b(?:push|pull_request|pull_request_target|schedule|workflow_run|repository_dispatch)\b/;
 
 function eventSection(source) {
   const lines = source.split(/\r?\n/);
-  const start = lines.findIndex((line) => /^on:\s*$/.test(line));
-  if (start < 0) {
-    const inline = lines.find((line) => /^on:\s*\[/.test(line));
-    return inline ?? "";
-  }
+  const start = lines.findIndex((line) => /^on:\s*/.test(line));
+  if (start < 0) return "";
 
-  const collected = [lines[start]];
+  const header = lines[start];
+  if (!/^on:\s*$/.test(header)) return header;
+
+  const collected = [header];
   for (let index = start + 1; index < lines.length; index += 1) {
     const line = lines[index];
     if (/^[A-Za-z0-9_-]+:\s*/.test(line)) break;
@@ -41,7 +41,7 @@ function validateRegistrationWorkflow(filename, source) {
     );
   }
 
-  if (AUTO_TRIGGER_RE.test(events) || /^on:\s*\[/.test(events)) {
+  if (AUTO_TRIGGER_RE.test(events)) {
     errors.push(
       `${filename}: OAuth DCR client creation must not run from automatic GitHub events.`,
     );
