@@ -5,6 +5,7 @@ import {
 } from './hubOAuth';
 
 const chatGptOrigin='https://chatgpt.com';
+const financeResource='https://finance.thiepn.dev/api/mcp';
 const allowedFinanceScopes=new Set(['openid','email','profile','offline_access']);
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
@@ -70,6 +71,7 @@ function financeDetails(raw:Record<string,unknown>,id:string,owner:string):OAuth
   const redirect=chatGptCallback(raw.redirect_uri);
   if(
     raw.authorization_id!==id||
+    raw.resource!==financeResource||
     !uuid(client?.id)||
     user?.id!==owner||
     !uuid(owner)
