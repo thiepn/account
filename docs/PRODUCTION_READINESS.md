@@ -34,22 +34,23 @@ The release candidate must pass:
 - TMS60 restore verifies backup integrity and creates a safety backup;
 - Account-specific missing foreign-key indexes reported during P19 were fixed.
 
-## External configuration required before v1.0.0
+## Production configuration verified
 
-These cannot be certified from repository code alone:
+As of 2026-10-07, the one-time production configuration is no longer a release blocker:
 
-1. **GitHub Pages publishing source**
-   - Repository Settings → Pages → Source: **GitHub Actions**.
-2. **Custom domain**
-   - Repository Pages custom domain: `account.thiepn.dev`.
-   - DNS: `account` must resolve to the GitHub Pages host required by the repository.
-   - HTTPS must become active before certification.
-3. **Supabase Auth URL configuration**
-   - Site URL should be the final Account origin.
-   - Allowed redirect URL must include `https://account.thiepn.dev/auth/callback`.
-4. **Google OAuth provider**
-   - Google OAuth redirect/origin configuration must match the Supabase/Auth production flow.
-5. **Real-origin certification**
+- GitHub Pages publishes through GitHub Actions;
+- `account.thiepn.dev` is the live HTTPS origin;
+- the deployed release manifest is checked against the exact green commit SHA;
+- Supabase Auth uses the production Account origin/callback;
+- the Google OAuth flow has completed successfully on the production origin;
+- the Account OAuth 2.1 discovery endpoint is live and advertises Authorization Code, refresh tokens and PKCE S256;
+- canonical first-party Library and Languages clients are registered and pass the live cross-origin SSO probe.
+
+## Remaining manual certification before v1.0.0
+
+These still require human or physical-device evidence:
+
+1. **Real-origin destructive and recovery workflows**
    - fresh Google sign-in;
    - sign-out;
    - deep-link sign-in return;
@@ -63,10 +64,10 @@ These cannot be certified from repository code alone:
    - WTTN deletion plan/blocker behavior;
    - TMS60 backup/restore using disposable test state only;
    - Account deletion plan and cancellation using a disposable test Account only.
-6. **Device/browser matrix**
+2. **Device/browser matrix**
    - Automated before release: Chromium, Firefox and WebKit desktop engines.
    - Manual hardware remains: Edge desktop sanity check, Android Chrome, Samsung Internet, and iOS Safari when an iOS device is available.
-7. **Accessibility/manual UX**
+3. **Accessibility/manual UX**
    - keyboard-only shell and dialogs;
    - 200% zoom;
    - 320px viewport;
@@ -75,16 +76,14 @@ These cannot be certified from repository code alone:
 
 ## Release rule
 
-Do **not** tag or describe the system as `v1.0.0` until the production origin passes the real OAuth and destructive-lifecycle smoke checks above.
+Do **not** tag or describe the system as `v1.0.0` until the remaining destructive/recovery, physical-device and accessibility certification gates above are complete.
 
 Until then the accurate status is **v1.0.0-rc.2**.
 
 
 ## External configuration verification
 
-On 2026-09-30, the operator reported the one-time Pages, custom-domain/DNS, and production OAuth configuration steps completed.
-
-This commit intentionally triggers the full Account CI → production artifact → Pages preflight → deploy → live `release.json` SHA verification chain. The production configuration is not considered certified until that workflow succeeds against `account.thiepn.dev`.
+On 2026-09-30, the one-time Pages, custom-domain/DNS and production OAuth configuration steps were reported complete. By 2026-10-07, the full Account CI → production artifact → Pages preflight → deploy → live `release.json` SHA verification chain had passed on the production origin, followed by a green Account SSO production burn-in.
 
 
 ## Live Google OAuth initiation
@@ -93,4 +92,18 @@ The production post-deploy browser smoke verifies that `Continue with Google` in
 
 `https://account.thiepn.dev/auth/callback`
 
-This deliberately stops before entering Google credentials. Completing the identity-provider flow remains a manual P20 certification step.
+The automated smoke deliberately stops before entering Google credentials, but separate live production verification has already confirmed successful Google authorization, PKCE callback, token exchange and authenticated Account reads. Future releases must preserve both automated initiation checks and human end-to-end regression coverage.
+
+
+## First-party SSO release gate
+
+The Account SSO production burn-in is now part of the production acceptance chain. It verifies:
+
+- canonical OAuth discovery metadata;
+- deterministic Account production routes, allowing only bounded same-origin trailing-slash redirects;
+- live Library, Languages and Japanese surfaces remain reachable;
+- invalid Languages/Japanese Account entry requests fail deterministically;
+- fresh-browser Library and Languages `/sso/probe` calls resolve the exact registered client and remain eligible;
+- no fresh burn-in browser unexpectedly inherits an Account session.
+
+The burn-in does not store Google credentials or production refresh tokens. Human authenticated callback, disconnect/reconnect and device/browser behavior therefore remain separate evidence where applicable.
