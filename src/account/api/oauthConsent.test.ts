@@ -16,6 +16,7 @@ const details={
   client:{id:CLIENT,uri:'https://chatgpt.com/'},
   user:{id:OWNER},
   scope:'openid email profile offline_access',
+  resource:'https://finance.thiepn.dev/api/mcp',
 };
 const options={hubEnabled:true,hubClientId:HUB_CLIENT,financeEnabled:true};
 
@@ -34,6 +35,8 @@ describe('P20 Account OAuth consent boundaries',()=>{
     {...details,redirect_uri:'https://evil.test/connector/oauth/callback_123'},
     {...details,redirect_uri:'https://chatgpt.com/not-a-connector/callback_123'},
     {...details,scope:'openid finance.write'},
+    {...details,resource:'https://another.example/api/mcp'},
+    {...details,resource:undefined},
     {...details,user:{id:CLIENT}},
     {...details,client:{id:'not-a-uuid'}},
   ])('rejects unsafe Finance request %j',value=>{
