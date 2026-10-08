@@ -94,3 +94,48 @@ jobs:
 `);
   assert.equal(result.status, 0, result.stderr);
 });
+
+
+test("rejects pull_request-triggered curl DCR", async () => {
+  const result = await runGuard(String.raw`
+name: Unsafe curl registration
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          endpoint="https://example.supabase.co/auth/v1/oauth/clients/register"
+          curl --fail-with-body \
+            -X POST "$endpoint" \
+            -H 'Content-Type: application/json' \
+            --data '{}'
+`);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /must not run from automatic GitHub events/);
+});
+
+test("allows workflow_dispatch-only curl DCR", async () => {
+  const result = await runGuard(String.raw`
+name: Manual curl registration
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          endpoint="https://example.supabase.co/auth/v1/oauth/clients/register"
+          curl --fail-with-body \
+            --request POST "$endpoint" \
+            -H 'Content-Type: application/json' \
+            --data '{}'
+`);
+  assert.equal(result.status, 0, result.stderr);
+});

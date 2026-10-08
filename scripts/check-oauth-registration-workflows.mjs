@@ -4,6 +4,7 @@ import path from "node:path";
 const WORKFLOW_DIR = path.resolve(".github/workflows");
 const DCR_ENDPOINT_RE = /\bregistration[_A-Za-z]*endpoint\b|\/oauth\/clients\/register\b/i;
 const HTTP_POST_RE = /\bmethod\s*:\s*["']post["']/i;
+const CURL_POST_RE = /\bcurl\b[\s\S]{0,1200}?(?:-X|--request)\s+["']?POST\b/i;
 const MANUAL_TRIGGER_RE = /\bworkflow_dispatch\b/;
 const AUTO_TRIGGER_RE =
   /\b(?:push|pull_request|pull_request_target|schedule|workflow_run|repository_dispatch)\b/;
@@ -26,7 +27,7 @@ function eventSection(source) {
 }
 
 function createsOAuthClient(source) {
-  return DCR_ENDPOINT_RE.test(source) && HTTP_POST_RE.test(source);
+  return DCR_ENDPOINT_RE.test(source) && (HTTP_POST_RE.test(source) || CURL_POST_RE.test(source));
 }
 
 function validateRegistrationWorkflow(filename, source) {
