@@ -21,68 +21,115 @@ jobs:
           REDIRECT_URI: https://french.thiepn.dev/
         run: |
           set -euo pipefail
+          node <<'NODE'
+          import { appendFile } from "node:fs/promises";
 
-          discovery="$ACCOUNT_ORIGIN/.well-known/oauth-authorization-server/auth/v1"
-          registration_endpoint="$(
-            curl --fail --silent --show-error "$discovery" |
-            jq -er '.registration_endpoint'
-          )"
+          const origin = process.env.ACCOUNT_ORIGIN;
+          const expectedEndpoint = process.env.EXPECTED_REGISTRATION_ENDPOINT;
+          const clientName = process.env.CLIENT_NAME;
+          const clientUri = process.env.CLIENT_URI;
+          const redirectUri = process.env.REDIRECT_URI;
 
-          if [[ "$registration_endpoint" != "$EXPECTED_REGISTRATION_ENDPOINT" ]]; then
-            echo "::error::Unexpected OAuth registration endpoint: $registration_endpoint"
-            exit 1
-          fi
+          const discoveryUrl =
+            origin + "/.well-known/oauth-authorization-server/auth/v1";
+          const discoveryResponse = await fetch(discoveryUrl, {
+            redirect: "error",
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!discoveryResponse.ok) {
+            throw new Error(
+              `OAuth discovery failed: ${discoveryResponse.status}`,
+            );
+          }
+          const metadata = await discoveryResponse.json();
+          const endpoint = metadata.registration_endpoint;
+          if (endpoint !== expectedEndpoint) {
+            throw new Error(`Unexpected registration endpoint: ${endpoint}`);
+          }
 
-          payload="$(
-            jq -n               --arg client_name "$CLIENT_NAME"               --arg client_uri "$CLIENT_URI"               --arg redirect_uri "$REDIRECT_URI"               '{
-                client_name: $client_name,
-                client_uri: $client_uri,
-                redirect_uris: [$redirect_uri],
-                grant_types: ["authorization_code", "refresh_token"],
-                response_types: ["code"],
-                token_endpoint_auth_method: "none"
-              }'
-          )"
+          const registrationResponse = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              client_name: clientName,
+              client_uri: clientUri,
+              redirect_uris: [redirectUri],
+              grant_types: ["authorization_code", "refresh_token"],
+              response_types: ["code"],
+              token_endpoint_auth_method: "none",
+            }),
+            redirect: "error",
+            signal: AbortSignal.timeout(10_000),
+          });
 
-          response="$(
-            curl --fail-with-body --silent --show-error               -X POST "$registration_endpoint"               -H 'Content-Type: application/json'               --data "$payload"
-          )"
+          const body = await registrationResponse.text();
+          let result;
+          try {
+            result = body ? JSON.parse(body) : {};
+          } catch {
+            throw new Error(
+              `OAuth registration returned non-JSON: ${registrationResponse.status}`,
+            );
+          }
+          if (!registrationResponse.ok) {
+            throw new Error(
+              `OAuth registration failed: ${registrationResponse.status} ${body.slice(0, 500)}`,
+            );
+          }
 
-          client_id="$(jq -er '.client_id' <<<"$response")"
-          returned_name="$(jq -er '.client_name // .name' <<<"$response")"
-          returned_auth_method="$(jq -er '.token_endpoint_auth_method' <<<"$response")"
-          returned_redirect="$(jq -er '.redirect_uris | if type=="array" then .[0] else . end' <<<"$response")"
+          const clientId = result.client_id;
+          const returnedName = result.client_name ?? result.name;
+          const returnedRedirects = result.redirect_uris;
+          const authMethod = result.token_endpoint_auth_method;
 
-          if ! [[ "$client_id" =~ ^[0-9a-fA-F-]{36}$ ]]; then
-            echo "::error::Registration returned an invalid client UUID."
-            exit 1
-          fi
-          if [[ "$returned_name" != "$CLIENT_NAME" ]]; then
-            echo "::error::Client name mismatch."
-            exit 1
-          fi
-          if [[ "$returned_auth_method" != "none" ]]; then
-            echo "::error::French must be a public OAuth client with token_endpoint_auth_method=none."
-            exit 1
-          fi
-          if [[ "$returned_redirect" != "$REDIRECT_URI" ]]; then
-            echo "::error::Exact French callback mismatch."
-            exit 1
-          fi
-          if jq -e 'has("client_secret") and (.client_secret != null) and (.client_secret != "")' <<<"$response" >/dev/null; then
-            echo "::error::Public French OAuth client unexpectedly returned a client secret."
-            exit 1
-          fi
+          if (
+            typeof clientId !== "string" ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+              clientId,
+            )
+          ) {
+            throw new Error("Registration returned an invalid client UUID.");
+          }
+          if (returnedName !== clientName) {
+            throw new Error("Client name mismatch.");
+          }
+          if (
+            !Array.isArray(returnedRedirects) ||
+            returnedRedirects.length !== 1 ||
+            returnedRedirects[0] !== redirectUri
+          ) {
+            throw new Error("Exact French callback mismatch.");
+          }
+          if (authMethod !== "none") {
+            throw new Error(
+              "French must be a public OAuth client with token_endpoint_auth_method=none.",
+            );
+          }
+          if (
+            typeof result.client_secret === "string" &&
+            result.client_secret.length > 0
+          ) {
+            throw new Error(
+              "Public French OAuth client unexpectedly returned a client secret.",
+            );
+          }
 
-          echo "::notice title=French OAuth client ID::$client_id"
-          {
-            echo "## French first-party OAuth registration"
-            echo
-            echo "- Client ID: `$client_id`"
-            echo "- Client name: `$returned_name`"
-            echo "- Client URI: `$CLIENT_URI`"
-            echo "- Callback: `$returned_redirect`"
-            echo "- Token auth: `$returned_auth_method`"
-            echo
-            echo "Next: pin this UUID in Account's `account_first_party_oauth_clients` registry, update French's pending client constant, verify the SSO probe, then delete this branch."
-          } >> "$GITHUB_STEP_SUMMARY"
+          console.log(
+            `::notice title=French OAuth client ID::${clientId}`,
+          );
+          await appendFile(
+            process.env.GITHUB_STEP_SUMMARY,
+            [
+              "## French first-party OAuth registration",
+              "",
+              `- Client ID: \`${clientId}\``,
+              `- Client name: \`${returnedName}\``,
+              `- Client URI: \`${clientUri}\``,
+              `- Callback: \`${returnedRedirects[0]}\``,
+              `- Token auth: \`${authMethod}\``,
+              "",
+              "Next: pin this UUID in Account's `account_first_party_oauth_clients` registry, update French's pending client constant, verify the SSO probe, then delete this branch.",
+              "",
+            ].join("\n"),
+          );
+          NODE
