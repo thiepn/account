@@ -6,7 +6,8 @@ import { getAccountOAuthOrigin, getAccountSupabaseClient } from "./supabase";
 import { consumeReturnTo, saveReturnTo } from "./returnTo";
 import {parseHubNotesConsent} from './hubConsent';
 import {authorizationId,hubOAuthRedirect,parseHubOAuthDetails} from './hubOAuth';
-import {oauthConsentRedirect,parseOAuthConsentDetails} from './oauthConsent';
+import {oauthConsentRedirect,parseOAuthConsentDetails,type OAuthConsentDetails} from './oauthConsent';
+import {createSingleFlight} from './singleFlight';
 import {
   firstPartyOAuthRedirect,
   firstPartyOAuthRedirectTarget,
@@ -478,6 +479,7 @@ export function createApiAccountService():AccountService{
   // PKCE codes are single-use. Replaying this callback (e.g. a React effect replay)
   // must join the existing exchange rather than consume the same code twice.
   let callbackFlight:Promise<string>|null=null;
+  const consentDetailsSingleFlight=createSingleFlight<string,OAuthConsentDetails>();
 
   async function getUser(){
     const {data,error}=await supabase.auth.getUser();
@@ -702,7 +704,8 @@ export function createApiAccountService():AccountService{
       async saveConsent(permissions,revision){const {data,error}=await supabase.rpc('set_thiepn_hub_notes_consent',{p_permissions:permissions,p_expected_revision:revision});if(error)throw mapError(error,'HUB_CONSENT_SAVE_FAILED');return parseHubNotesConsent(data);},
     },
     oauthConsent:{
-      async details(id){
+      details(id){
+        return consentDetailsSingleFlight(id,async()=>{
         const hubEnabled=import.meta.env.VITE_HUB_OAUTH_ENABLED==='staged-v1';
         const financeEnabled=import.meta.env.VITE_FINANCE_MCP_OAUTH_ENABLED==='staged-v1';
         authorizationId(id);
@@ -768,6 +771,7 @@ export function createApiAccountService():AccountService{
           hubEnabled,
           hubClientId:import.meta.env.VITE_HUB_OAUTH_CLIENT_ID??'',
           financeEnabled,
+        });
         });
       },
       async decide(id,owner,kind,approve){
