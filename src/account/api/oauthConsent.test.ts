@@ -72,3 +72,38 @@ describe('P20 Account OAuth consent boundaries',()=>{
     });
   });
 });
+
+
+describe('P7 ChatGPT Recipe consent isolation',()=>{
+  const recipeDetails={...details,resource:'https://recipe.thiepn.dev/api/mcp'};
+  const both={...options,recipeEnabled:true};
+  it('accepts only the canonical Recipe MCP resource when enabled',()=>{
+    expect(parseOAuthConsentDetails(recipeDetails,ID,OWNER,both)).toEqual({
+      authorizationId:ID,
+      owner:OWNER,
+      kind:'recipe-chatgpt',
+      title:'ChatGPT Recipe',
+      scopes:['openid','email','profile','offline_access'],
+    });
+  });
+  it('denies Recipe when disabled, without weakening Finance consent',()=>{
+    expect(()=>parseOAuthConsentDetails(recipeDetails,ID,OWNER,options)).toThrow();
+    expect(parseOAuthConsentDetails(details,ID,OWNER,both)).toMatchObject({
+      kind:'finance-chatgpt',
+    });
+    expect(()=>parseOAuthConsentDetails(details,ID,OWNER,{...both,financeEnabled:false})).toThrow();
+  });
+  it('rejects Recipe OAuth callbacks to non-ChatGPT domains or unexpected scopes',()=>{
+    for(const invalid of [
+      {...recipeDetails,redirect_uri:'https://evil.example/connector/oauth/test'},
+      {...recipeDetails,scope:'openid email profile offline_access finance.write'},
+      {...recipeDetails,resource:'https://recipes.example/api/mcp'},
+      {...recipeDetails,user:{id:CLIENT}},
+    ])expect(()=>parseOAuthConsentDetails(invalid,ID,OWNER,both)).toThrow();
+  });
+  it('allows only the already-constrained ChatGPT redirect for Recipe',()=>{
+    const accepted=callback+'?code=example-code&state=opaque-abc';
+    expect(oauthConsentRedirect(accepted,'recipe-chatgpt')).toBe(accepted);
+    expect(()=>oauthConsentRedirect('https://evil.example/?code=x&state=y','recipe-chatgpt')).toThrow();
+  });
+});

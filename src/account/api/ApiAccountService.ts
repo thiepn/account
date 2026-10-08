@@ -705,6 +705,7 @@ export function createApiAccountService():AccountService{
       async details(id){
         const hubEnabled=import.meta.env.VITE_HUB_OAUTH_ENABLED==='staged-v1';
         const financeEnabled=import.meta.env.VITE_FINANCE_MCP_OAUTH_ENABLED==='staged-v1';
+        const recipeEnabled=import.meta.env.VITE_RECIPE_MCP_OAUTH_ENABLED==='staged-v1';
         authorizationId(id);
         const {data:user,error:userError}=await supabase.auth.getUser();
         if(userError||!user.user)throw mapError(userError,'OAUTH_CONSENT_UNAVAILABLE');
@@ -763,11 +764,12 @@ export function createApiAccountService():AccountService{
           }
         }
 
-        if(!hubEnabled&&!financeEnabled)return unsupported();
+        if(!hubEnabled&&!financeEnabled&&!recipeEnabled)return unsupported();
         return parseOAuthConsentDetails(data,id,user.user.id,{
           hubEnabled,
           hubClientId:import.meta.env.VITE_HUB_OAUTH_CLIENT_ID??'',
           financeEnabled,
+          recipeEnabled,
         });
       },
       async decide(id,owner,kind,approve){

@@ -6,19 +6,22 @@ import {
 
 const chatGptOrigin='https://chatgpt.com';
 const financeResource='https://finance.thiepn.dev/api/mcp';
+const recipeResource='https://recipe.thiepn.dev/api/mcp';
 const allowedFinanceScopes=new Set(['openid','email','profile','offline_access']);
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
-export type OAuthConsentKind='hub'|'finance-chatgpt';
+export type OAuthConsentKind='hub'|'finance-chatgpt'|'recipe-chatgpt';
 export type OAuthConsentDetails=
   |{authorizationId:string;owner:string;kind:'hub';title:'THIEPN Hub';scopes:['email']}
   |{authorizationId:string;owner:string;kind:'finance-chatgpt';title:'ChatGPT';scopes:string[]}
+  |{authorizationId:string;owner:string;kind:'recipe-chatgpt';title:'ChatGPT Recipe';scopes:string[]}
   |{redirectUrl:string};
 
 export interface OAuthConsentOptions{
   hubEnabled:boolean;
   hubClientId:string;
   financeEnabled:boolean;
+  recipeEnabled?:boolean;
 }
 
 function chatGptCallback(raw:unknown):URL{
@@ -65,30 +68,33 @@ function scopes(raw:unknown):string[]{
   return values;
 }
 
-function financeDetails(raw:Record<string,unknown>,id:string,owner:string):OAuthConsentDetails{
+function chatGptDetails(
+  raw:Record<string,unknown>,id:string,owner:string,
+  expectedResource:string,kind:'finance-chatgpt'|'recipe-chatgpt',
+):OAuthConsentDetails{
   const client=raw.client as Record<string,unknown>|undefined;
   const user=raw.user as Record<string,unknown>|undefined;
   const redirect=chatGptCallback(raw.redirect_uri);
   if(
     raw.authorization_id!==id||
-    raw.resource!==financeResource||
+    raw.resource!==expectedResource||
     !uuid(client?.id)||
     user?.id!==owner||
     !uuid(owner)
   )throw new Error('OAUTH_CONSENT_UNAVAILABLE');
 
+  const grantedScopes=scopes(raw.scope);
+  if(kind==='finance-chatgpt')return{
+    authorizationId:id,owner,kind,title:'ChatGPT',scopes:grantedScopes,
+  };
   return{
-    authorizationId:id,
-    owner,
-    kind:'finance-chatgpt',
-    title:'ChatGPT',
-    scopes:scopes(raw.scope),
+    authorizationId:id,owner,kind,title:'ChatGPT Recipe',scopes:grantedScopes,
   };
 }
 
 export function oauthConsentRedirect(raw:unknown,kind?:OAuthConsentKind):string{
   if(kind==='hub')return hubOAuthRedirect(raw);
-  if(kind==='finance-chatgpt')return financeOAuthRedirect(raw);
+  if(kind==='finance-chatgpt'||kind==='recipe-chatgpt')return financeOAuthRedirect(raw);
   try{return hubOAuthRedirect(raw);}catch{return financeOAuthRedirect(raw);}
 }
 
@@ -120,9 +126,12 @@ export function parseOAuthConsentDetails(
     };
   }
 
-  if(options.financeEnabled){
+  if(options.financeEnabled||options.recipeEnabled){
     chatGptCallback(redirect);
-    return financeDetails(value,id,owner);
+    if(value.resource===financeResource && options.financeEnabled)
+      return chatGptDetails(value,id,owner,financeResource,'finance-chatgpt');
+    if(value.resource===recipeResource && options.recipeEnabled)
+      return chatGptDetails(value,id,owner,recipeResource,'recipe-chatgpt');
   }
 
   throw new Error('OAUTH_CONSENT_UNAVAILABLE');
