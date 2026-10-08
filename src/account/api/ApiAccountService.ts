@@ -809,6 +809,8 @@ export function createApiAccountService():AccountService{
               p_client_id:details.clientId,p_app_slug:details.appSlug,
             });
             if(connectionError)throw mapError(connectionError,'OAUTH_CONSENT_UNAVAILABLE');
+            const {data:verifiedOwner,error:ownerError}=await supabase.auth.getUser();
+            if(ownerError||verifiedOwner.user?.id!==owner)throw mapError(ownerError,'OAUTH_CONSENT_UNAVAILABLE');
             if(details.approvedRedirectUrl)return firstPartyOAuthRedirect(details.approvedRedirectUrl,details.redirectUri);
           }
           const {data:result,error:resultError}=await (
