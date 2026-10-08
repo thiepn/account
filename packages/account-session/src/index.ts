@@ -64,17 +64,26 @@ const DEFAULT_SCOPES = [
 const PENDING_TTL_MS = 10 * 60 * 1000;
 const TOKEN_SKEW_MS = 30 * 1000;
 
+function secureOAuthTransport(url: URL): boolean {
+  // OAuth bearer tokens and PKCE codes must never travel over HTTP except
+  // when explicitly testing a client on the developer's own loopback host.
+  return url.protocol === 'https:' || (
+    url.protocol === 'http:' &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  );
+}
+
 function exactOrigin(raw: string): string {
   const value = new URL(raw);
   if (
-    !['https:', 'http:'].includes(value.protocol) ||
+    !secureOAuthTransport(value) ||
     value.username ||
     value.password ||
     value.search ||
     value.hash ||
     value.pathname !== '/'
   ) {
-    throw new TypeError('issuer must be an exact HTTP(S) origin');
+    throw new TypeError('issuer must be an exact HTTPS origin (HTTP loopback only)');
   }
   return value.origin;
 }
@@ -82,14 +91,14 @@ function exactOrigin(raw: string): string {
 function exactRedirect(raw: string): string {
   const value = new URL(raw);
   if (
-    !['https:', 'http:'].includes(value.protocol) ||
+    !secureOAuthTransport(value) ||
     value.username ||
     value.password ||
     value.hash ||
     value.search
   ) {
     throw new TypeError(
-      'redirectUri must be an exact HTTP(S) URL without query or fragment',
+      'redirectUri must be an HTTPS URL without query or fragment (HTTP loopback only)',
     );
   }
   return value.href;
