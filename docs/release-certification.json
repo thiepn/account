@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "release": "1.0.0-rc.2",
+  "reviewedBy": null,
+  "reviewedAt": null,
+  "manualChecks": [
+    {
+      "id": "google-signin",
+      "description": "Fresh Google sign-in and callback on the live canonical Account origin",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "protected-deeplink",
+      "description": "Protected deep-link survives sign-in and returns to the exact safe Account route",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "current-session-signout",
+      "description": "Account sign-out removes access to protected Account routes",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "same-account-reauth",
+      "description": "Sensitive-action Google reauthentication returns the original Account UUID",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "different-account-reauth",
+      "description": "Different Google Account on reauthentication fails closed without mutating owner data",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "sessions-other",
+      "description": "Account session list and sign out all other sessions preserve current session",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "profile-update",
+      "description": "Authenticated profile update persists and is visible after reload",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "app-permission",
+      "description": "Owner-only connected-app grant/revoke works without restoring sensitive grants",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "app-disconnect-reconnect",
+      "description": "Disconnected app requires explicit Account reconnection approval",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "data-inventory-export",
+      "description": "Data inventory and 24-hour metadata export/download are correct for the owner",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "wttn-delete",
+      "description": "WTTN deletion plan and execution are verified on disposable test data only",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "tms60-restore",
+      "description": "TMS60 backup and verified restore work on disposable test state only",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "account-delete-cancel",
+      "description": "Disposable test Account deletion planning, scheduling and cancellation succeed",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "android-chrome",
+      "description": "Physical Android Chrome login, logout and narrow-screen interaction",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "samsung-internet",
+      "description": "Physical Samsung Internet login, logout and narrow-screen interaction",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "edge-desktop",
+      "description": "Physical Edge desktop login, logout and sensitive-dialog operation",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "keyboard-zoom",
+      "description": "Keyboard navigation, focus restoration and native 200 percent browser zoom",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "screen-reader",
+      "description": "Screen-reader labels, landmarks, consent and destructive-dialog comprehension",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "theme-modes",
+      "description": "Light, dark and system theme appearance and persistence on real browsers",
+      "required": true,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    },
+    {
+      "id": "ios-safari",
+      "description": "iOS Safari real-device smoke when an iOS device is available",
+      "required": false,
+      "status": "pending",
+      "evidence": null,
+      "verifiedBy": null,
+      "verifiedAt": null
+    }
+  ]
+}
