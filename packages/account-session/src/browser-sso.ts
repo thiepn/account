@@ -150,6 +150,7 @@ export function createThiepnBrowserSso(
   let initializeFlight: Promise<ThiepnBrowserSsoStatus> | null = null;
   let callbackFlight: Promise<ThiepnIdentity> | null = null;
   let redirectFlight: Promise<void> | null = null;
+  let redirectGeneration: number | null = null;
   // A local sign-out or an explicit connect cancels stale silent probes.
   let generation = 0;
   let leaving = false;
@@ -193,7 +194,13 @@ export function createThiepnBrowserSso(
       catch (error) { leaving = false; throw error; }
     })();
     redirectFlight = promise;
-    const clear = () => { if (redirectFlight === promise) redirectFlight = null; };
+    redirectGeneration = epoch;
+    const clear = () => {
+      if (redirectFlight === promise) {
+        redirectFlight = null;
+        redirectGeneration = null;
+      }
+    };
     void promise.then(clear, clear);
     return promise;
   }
@@ -246,7 +253,13 @@ export function createThiepnBrowserSso(
 
   function connect(): Promise<void> {
     if (leaving) return Promise.resolve();
-    if (redirectFlight) return redirectFlight;
+    if (redirectFlight) {
+      if (redirectGeneration === generation) return redirectFlight;
+      // Do not race a new PKCE verifier against an old computation that was
+      // invalidated by sign-out. Serialize, then make a fresh explicit request.
+      const previous = redirectFlight;
+      return previous.then(() => connect(), () => connect());
+    }
     ++generation;
     localOptOut = false;
     setOptOut(false);
