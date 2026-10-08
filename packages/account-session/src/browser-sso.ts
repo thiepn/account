@@ -149,6 +149,9 @@ export function createThiepnBrowserSso(
   let lastProbe = Number.NEGATIVE_INFINITY;
   let initializeFlight: Promise<ThiepnBrowserSsoStatus> | null = null;
   let callbackFlight: Promise<ThiepnIdentity> | null = null;
+  let redirectFlight: Promise<void> | null = null;
+  // A local sign-out or an explicit connect cancels stale silent probes.
+  let generation = 0;
   let leaving = false;
 
   const storage = () => {
@@ -170,25 +173,41 @@ export function createThiepnBrowserSso(
   };
   let localOptOut = false;
 
-  async function redirect(): Promise<void> {
-    if (leaving) return;
-    const url = await session.authorizationUrl();
-    const parsed = new URL(url);
-    if (parsed.origin !== session.issuer ||
-        parsed.pathname !== '/auth/v1/oauth/authorize') {
-      throw new Error('ACCOUNT_AUTHORIZATION_URL_INVALID');
-    }
-    leaving = true;
-    try { navigate(url); }
-    catch (error) { leaving = false; throw error; }
+  function redirect(epoch: number): Promise<void> {
+    if (leaving || epoch !== generation) return Promise.resolve();
+    // OAuth state is one-use per client. Concurrent calls MUST join the same
+    // authorizationUrl() request or the second PKCE verifier overwrites first.
+    if (redirectFlight) return redirectFlight;
+    const promise = (async () => {
+      const url = await session.authorizationUrl();
+      // Sign-out/connect may have happened while the PKCE challenge was
+      // being computed. Never navigate on a stale generation.
+      if (epoch !== generation) return;
+      const parsed = new URL(url);
+      if (parsed.origin !== session.issuer ||
+          parsed.pathname !== '/auth/v1/oauth/authorize') {
+        throw new Error('ACCOUNT_AUTHORIZATION_URL_INVALID');
+      }
+      leaving = true;
+      try { navigate(url); }
+      catch (error) { leaving = false; throw error; }
+    })();
+    redirectFlight = promise;
+    const clear = () => { if (redirectFlight === promise) redirectFlight = null; };
+    void promise.then(clear, clear);
+    return promise;
   }
 
   function initialize(): Promise<ThiepnBrowserSsoStatus> {
     if (leaving) return Promise.resolve({ status: 'redirecting' as const });
     if (initializeFlight) return initializeFlight;
 
+    const epoch = generation;
     const run = async (): Promise<ThiepnBrowserSsoStatus> => {
       const identity = await session.verify();
+      if (epoch !== generation) {
+        return { status: 'ready', identity: { status: 'signed-out' } };
+      }
       if (identity.status !== 'signed-out') {
         return { status: 'ready', identity };
       }
@@ -204,8 +223,14 @@ export function createThiepnBrowserSso(
 
       lastProbe = now();
       const probe = await probeThiepnAccount(origin, session.clientId, timeout);
+      if (epoch !== generation || localOptOut || optedOut()) {
+        return { status: 'ready', identity: { status: 'signed-out' } };
+      }
       if (probe === 'signed-in') {
-        await redirect();
+        await redirect(epoch);
+        if (epoch !== generation) {
+          return { status: 'ready', identity: { status: 'signed-out' } };
+        }
         return { status: 'redirecting' };
       }
       return { status: 'ready', identity };
@@ -219,13 +244,17 @@ export function createThiepnBrowserSso(
     return promise;
   }
 
-  async function connect(): Promise<void> {
+  function connect(): Promise<void> {
+    if (leaving) return Promise.resolve();
+    if (redirectFlight) return redirectFlight;
+    ++generation;
     localOptOut = false;
     setOptOut(false);
-    await redirect();
+    return redirect(generation);
   }
 
   function signOutLocal(): ThiepnIdentity {
+    ++generation;
     localOptOut = true;
     setOptOut(true);
     leaving = false;
@@ -243,7 +272,9 @@ export function createThiepnBrowserSso(
       status: 'unavailable',
       code: 'ACCOUNT_CALLBACK_ORIGIN_MISMATCH',
     });
+    const epoch = generation;
     const pending = session.completeCallback(location).then(identity => {
+      if (epoch !== generation) return { status: 'signed-out' as const };
       if (identity.status === 'signed-in') {
         localOptOut = false;
         setOptOut(false);
