@@ -91,3 +91,26 @@ test("signing out other Account sessions requires explicit confirmation",async({
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText(/5 sessions/)).toHaveCount(2);
 });
+
+test("mobile Account avatar opens the functional account drawer",async({page})=>{
+  await page.setViewportSize({width:375,height:760});
+  await page.goto("/?scenario=default");
+  const accountMenu=page.getByRole("button",{name:"Account menu"});
+  await expect(accountMenu).toHaveAttribute("aria-expanded","false");
+  await accountMenu.click();
+  await expect(accountMenu).toHaveAttribute("aria-expanded","true");
+  const drawer=page.getByRole("dialog",{name:"Account navigation"});
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("button",{name:"Sign out"})).toBeVisible();
+  await drawer.getByRole("button",{name:"Close navigation"}).click();
+  await expect(drawer).toHaveCount(0);
+});
+
+test("signing out removes protected Account access",async({page})=>{
+  await page.goto("/?scenario=default");
+  await page.getByRole("button",{name:"Sign out"}).click();
+  await expect(page).toHaveURL(/\/auth\/sign-in$/);
+  await expect(page.getByRole("heading",{name:"Sign in"})).toBeVisible();
+  await page.goto("/profile");
+  await expect(page).toHaveURL(/\/auth\/sign-in$/);
+});

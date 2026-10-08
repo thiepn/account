@@ -24,6 +24,9 @@ function Navigation({onNavigate}:{onNavigate?:()=>void}){
 
 export function AccountShell(){
   const [drawerOpen,setDrawerOpen]=useState(false);
+  const [signOutBusy,setSignOutBusy]=useState(false);
+  const [signOutError,setSignOutError]=useState(false);
+  const signOutLock=useRef(false);
   const menuRef=useRef<HTMLButtonElement>(null);
   const drawerRef=useRef<HTMLDivElement>(null);
   const closeRef=useRef<HTMLButtonElement>(null);
@@ -64,7 +67,22 @@ export function AccountShell(){
     return()=>{document.removeEventListener("keydown",keydown);document.body.style.overflow=oldOverflow;menuRef.current?.focus();};
   },[drawerOpen]);
 
-  async function signOut(){await service.auth.signOut();queryClient.clear();navigate("/auth/sign-in",{replace:true});}
+  async function signOut(){
+    if(signOutLock.current)return;
+    signOutLock.current=true;
+    setSignOutBusy(true);
+    setSignOutError(false);
+    try{
+      await service.auth.signOut();
+      queryClient.clear();
+      navigate("/auth/sign-in",{replace:true});
+    }catch{
+      setSignOutError(true);
+    }finally{
+      signOutLock.current=false;
+      setSignOutBusy(false);
+    }
+  }
 
   return <div className="account-app">
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-[var(--surface)] focus:px-4 focus:py-2">Skip to content</a>
@@ -72,7 +90,7 @@ export function AccountShell(){
     <header className="mobile-header">
       <button ref={menuRef} className="icon-button" onClick={()=>setDrawerOpen(true)} aria-label="Open navigation" aria-expanded={drawerOpen}><Menu size={19}/></button>
       <Brand compact/>
-      <button className="avatar-button" aria-label="Account menu">T</button>
+      <button className="avatar-button" aria-label="Account menu" aria-expanded={drawerOpen} onClick={()=>setDrawerOpen(true)}>{profileInitial}</button>
     </header>
 
     {privacy.data?.accountStatus==="deletion-pending"?<div className="deletion-banner"><div className="deletion-banner-inner"><span>Account deletion is scheduled. Account-changing actions are restricted until you cancel it or deletion completes.</span><Link className="font-semibold underline underline-offset-2" to="/account/deletion/status">View deletion status</Link></div></div>:null}
@@ -89,8 +107,9 @@ export function AccountShell(){
           </div>
           <div className="sidebar-actions">
             <button className="nav-secondary" onClick={theme.cycle} aria-label={`Theme: ${theme.mode}`}>{theme.mode==="dark"?<Moon size={16}/>:<Sun size={16}/>}<span>Theme</span></button>
-            <button className="nav-secondary" onClick={signOut}><LogOut size={16}/><span>Sign out</span></button>
+            <button className="nav-secondary" disabled={signOutBusy} onClick={()=>void signOut()}><LogOut size={16}/><span>{signOutBusy?"Signing out…":"Sign out"}</span></button>
           </div>
+          {signOutError?<p role="alert" className="text-xs text-red-600 dark:text-red-400">Sign out failed. Check your connection and try again.</p>:null}
         </div>
       </aside>
 
@@ -110,8 +129,9 @@ export function AccountShell(){
           </div>
           <div className="sidebar-actions">
             <button className="nav-secondary" onClick={theme.cycle} aria-label={`Theme: ${theme.mode}`}>{theme.mode==="dark"?<Moon size={16}/>:<Sun size={16}/>}<span>Theme</span></button>
-            <button className="nav-secondary" onClick={signOut}><LogOut size={16}/><span>Sign out</span></button>
+            <button className="nav-secondary" disabled={signOutBusy} onClick={()=>void signOut()}><LogOut size={16}/><span>{signOutBusy?"Signing out…":"Sign out"}</span></button>
           </div>
+          {signOutError?<p role="alert" className="text-xs text-red-600 dark:text-red-400">Sign out failed. Check your connection and try again.</p>:null}
         </div>
       </div>
     </div>:null}

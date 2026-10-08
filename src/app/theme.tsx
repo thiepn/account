@@ -12,12 +12,17 @@ function applyTheme(mode:ThemeMode){
 
 export function ThemeProvider({children}:{children:ReactNode}){
   const [mode,setMode]=useState<ThemeMode>(()=>{
-    const value=localStorage.getItem(STORAGE_KEY);
+    let value:string|null=null;
+    try{value=localStorage.getItem(STORAGE_KEY);}catch{
+      // Some privacy modes disable storage; theme preference remains in memory.
+    }
     return value==="dark"||value==="light"||value==="system" ? value : "system";
   });
   useEffect(()=>{
     applyTheme(mode);
-    localStorage.setItem(STORAGE_KEY,mode);
+    try{localStorage.setItem(STORAGE_KEY,mode);}catch{
+      // Keep the selected theme active even when browser storage is blocked.
+    }
     if(mode!=="system") return;
     const media=window.matchMedia("(prefers-color-scheme: dark)");
     const update=()=>applyTheme("system");

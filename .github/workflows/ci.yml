@@ -23,7 +23,7 @@ jobs:
       - run: pnpm typecheck
       - name: Enforce frontend backend-boundary imports
         run: |
-          if grep -R -n -E '@supabase/supabase-js|supabase\.|fetch\(|axios' src/pages src/components src/account/hooks.ts src/account/useSensitiveAction.ts; then
+          if grep -R -n -E '@supabase/supabase-js|supabase\.|(^|[^[:alnum:]_])fetch\(|axios' src/pages src/components src/account/hooks.ts src/account/useSensitiveAction.ts; then
             echo "Direct backend access found outside the Account service adapter"
             exit 1
           fi

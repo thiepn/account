@@ -17,7 +17,7 @@ function ProtectedAccount(){
   const location=useLocation();
   if(auth.isLoading)return <main className="grid min-h-dvh place-items-center bg-[var(--background)] text-sm text-[var(--muted)]">Checking your account…</main>;
   if(auth.isError)return <main className="grid min-h-dvh place-items-center bg-[var(--background)] px-4 text-[var(--foreground)]"><div className="max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6"><h1 className="text-xl font-semibold">THIEPN Account is temporarily unavailable.</h1><p className="mt-2 text-sm text-[var(--muted)]">Your existing sign-in could not be verified. Try again when the Account service is reachable.</p><button className="primary-button mt-5" onClick={()=>void auth.refetch()}>Try again</button></div></main>;
-  if(auth.data!=="signed-in")return <Navigate to="/auth/sign-in" replace state={{returnTo:location.pathname+location.search}}/>;
+  if(auth.data!=="signed-in")return <Navigate to="/auth/sign-in" replace state={{returnTo:location.pathname+location.search+location.hash}}/>;
   return <AccountShell/>;
 }
 export function App(){return <AppErrorBoundary><Routes>

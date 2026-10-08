@@ -8,7 +8,7 @@ export interface AuthService {
   isRecentlyAuthenticated():Promise<boolean>;
   reauthenticate(returnTo?:string):Promise<{redirecting:boolean}>;
   signOut():Promise<void>;
-  subscribe(listener:(state:AuthState)=>void):()=>void;
+  subscribe(listener:(state:AuthState,accountId?:string)=>void):()=>void;
 }
 export interface UpdateProfileInput { displayName:string; preferredLanguage:string; timezone:string; }
 export interface ProfileService { getProfile():Promise<AccountProfile>; updateProfile(input:UpdateProfileInput):Promise<AccountProfile>; }
