@@ -83,12 +83,12 @@ function chatGptDetails(
     !uuid(owner)
   )throw new Error('OAUTH_CONSENT_UNAVAILABLE');
 
+  const grantedScopes=scopes(raw.scope);
+  if(kind==='finance-chatgpt')return{
+    authorizationId:id,owner,kind,title:'ChatGPT',scopes:grantedScopes,
+  };
   return{
-    authorizationId:id,
-    owner,
-    kind,
-    title:kind==='finance-chatgpt'?'ChatGPT':'ChatGPT Recipe',
-    scopes:scopes(raw.scope),
+    authorizationId:id,owner,kind,title:'ChatGPT Recipe',scopes:grantedScopes,
   };
 }
 
