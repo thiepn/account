@@ -128,3 +128,14 @@ export function firstPartyOAuthRedirect(raw:unknown,registeredRedirect:string):s
   }
   return url.href;
 }
+
+/** Explicitly refusing a previously approved first-party request never returns
+ * its authorization code to a deliberately disconnected application. */
+export function firstPartyOAuthDeniedRedirect(approvedRaw:unknown,registeredRedirect:string):string{
+  const previouslyApproved=firstPartyOAuthRedirect(approvedRaw,registeredRedirect);
+  const url=new URL(previouslyApproved);
+  url.searchParams.delete('code');
+  url.searchParams.delete('error_description');
+  url.searchParams.set('error','access_denied');
+  return firstPartyOAuthRedirect(url.href,registeredRedirect);
+}
