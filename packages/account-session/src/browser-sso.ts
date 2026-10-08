@@ -36,7 +36,8 @@ function accountOrigin(raw: string): string {
     value.search ||
     value.hash ||
     value.pathname !== '/' ||
-    value.port
+    value.port ||
+    value.origin !== 'https://account.thiepn.dev'
   ) throw new TypeError('accountOrigin must be an exact HTTPS origin');
   return value.origin;
 }
