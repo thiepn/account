@@ -27,6 +27,8 @@ This is the **Account-side integration contract**. The Account service and SDK c
 4. Check the exact client URI/origin and registration using the `/sso/probe` boundary, OAuth discovery, and an interactive disposable-account test.
 5. Pin a reviewed `thiepn/account` package commit; do not hardcode an unregistered UUID or use Google OAuth from the client app.
 
+**Transport security:** the shared SDK requires HTTPS for both the OAuth issuer and the exact redirect URI. HTTP is accepted only for an explicit `localhost`, `127.0.0.1` or `[::1]` development loopback; private LAN addresses and HTTP production hosts are rejected. Production registrations remain HTTPS-only.
+
 ## Minimal browser integration
 
 Install the shared `@thiepn/account-session` package from a **pinned, reviewed commit**. In a browser entry module:
