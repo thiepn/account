@@ -10,6 +10,7 @@ import {oauthConsentRedirect,parseOAuthConsentDetails,type OAuthConsentDetails} 
 import {createSingleFlight} from './singleFlight';
 import {
   firstPartyOAuthRedirect,
+  firstPartyOAuthDeniedRedirect,
   firstPartyOAuthRedirectTarget,
   firstPartyOAuthRequest,
   parseFirstPartyOAuthRegistration,
@@ -730,7 +731,18 @@ export function createApiAccountService():AccountService{
               const registration=parseFirstPartyOAuthResolvedRegistration(resolved,target);
               if(!registration.automaticIdentityConsent)
                 throw mapError(new Error('FIRST_PARTY_OAUTH_CONSENT_REQUIRED'),'OAUTH_CONSENT_UNAVAILABLE');
-              return{redirectUrl:firstPartyOAuthRedirect((data as Record<string,unknown>).redirect_url,registration.redirectUri)};
+              const {data:connection,error:connectionError}=await supabase.from('account_app_connections')
+                .select('status').eq('app_slug',registration.appSlug).eq('user_id',user.user.id).maybeSingle();
+              if(connectionError)throw mapError(connectionError,'OAUTH_CONSENT_UNAVAILABLE');
+              const validated=firstPartyOAuthRedirect((data as Record<string,unknown>).redirect_url,registration.redirectUri);
+              if(connection?.status==='disconnected')return {
+                authorizationId:id,owner:user.user.id,kind:'first-party-reconnect' as const,
+                title:registration.appName,clientId:registration.clientId,appSlug:registration.appSlug,
+                redirectUri:registration.redirectUri,approvedRedirectUrl:validated,
+              };
+              if(connection&&connection.status!=='connected'&&connection.status!=='limited')
+                throw new Error('FIRST_PARTY_APP_INACTIVE');
+              return{redirectUrl:validated};
             }
           }
         }else{
@@ -749,6 +761,16 @@ export function createApiAccountService():AccountService{
               const registration=parseFirstPartyOAuthRegistration(resolved,request);
               if(!registration.automaticIdentityConsent)
                 throw mapError(new Error('FIRST_PARTY_OAUTH_CONSENT_REQUIRED'),'OAUTH_CONSENT_UNAVAILABLE');
+              const {data:connection,error:connectionReadError}=await supabase.from('account_app_connections')
+                .select('status').eq('app_slug',registration.appSlug).eq('user_id',user.user.id).maybeSingle();
+              if(connectionReadError)throw mapError(connectionReadError,'OAUTH_CONSENT_UNAVAILABLE');
+              if(connection?.status==='disconnected')return {
+                authorizationId:id,owner:user.user.id,kind:'first-party-reconnect' as const,
+                title:registration.appName,clientId:registration.clientId,appSlug:registration.appSlug,
+                redirectUri:registration.redirectUri,
+              };
+              if(connection&&connection.status!=='connected'&&connection.status!=='limited')
+                throw new Error('FIRST_PARTY_APP_INACTIVE');
 
               const {error:connectionError}=await supabase.rpc('ensure_thiepn_first_party_app_connection',{
                 p_client_id:registration.clientId,
@@ -777,6 +799,29 @@ export function createApiAccountService():AccountService{
       async decide(id,owner,kind,approve){
         const details=await service.oauthConsent.details(id);
         if('redirectUrl' in details||details.owner!==owner||details.kind!==kind)throw new Error('OAUTH_CONSENT_UNAVAILABLE');
+        if(details.kind==='first-party-reconnect'){
+          const {data:active,error:activeError}=await supabase.auth.getUser();
+          if(activeError||active.user?.id!==owner)throw mapError(activeError,'OAUTH_CONSENT_UNAVAILABLE');
+          if(!approve&&details.approvedRedirectUrl)
+            return firstPartyOAuthDeniedRedirect(details.approvedRedirectUrl,details.redirectUri);
+          if(approve){
+            const {error:connectionError}=await supabase.rpc('ensure_thiepn_first_party_app_connection',{
+              p_client_id:details.clientId,p_app_slug:details.appSlug,
+            });
+            if(connectionError)throw mapError(connectionError,'OAUTH_CONSENT_UNAVAILABLE');
+            const {data:verifiedOwner,error:ownerError}=await supabase.auth.getUser();
+            if(ownerError||verifiedOwner.user?.id!==owner)throw mapError(ownerError,'OAUTH_CONSENT_UNAVAILABLE');
+            if(details.approvedRedirectUrl)return firstPartyOAuthRedirect(details.approvedRedirectUrl,details.redirectUri);
+          }
+          const {data:result,error:resultError}=await (
+            approve?supabase.auth.oauth.approveAuthorization(id,{skipBrowserRedirect:true})
+              :supabase.auth.oauth.denyAuthorization(id,{skipBrowserRedirect:true})
+          );
+          if(resultError||!result)throw mapError(resultError,'OAUTH_CONSENT_UNAVAILABLE');
+          const {data:confirmed,error:confirmedError}=await supabase.auth.getUser();
+          if(confirmedError||confirmed.user?.id!==owner)throw mapError(confirmedError,'OAUTH_CONSENT_UNAVAILABLE');
+          return firstPartyOAuthRedirect(result.redirect_url,details.redirectUri);
+        }
         const {data,error}=await (approve?supabase.auth.oauth.approveAuthorization(id,{skipBrowserRedirect:true}):supabase.auth.oauth.denyAuthorization(id,{skipBrowserRedirect:true}));
         if(error||!data)throw mapError(error,'OAUTH_CONSENT_UNAVAILABLE');
         const {data:current,error:currentError}=await supabase.auth.getUser();

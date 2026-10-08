@@ -54,6 +54,21 @@ export function OAuthConsentPage(){
     }
   }
 
+  if(details&&'kind' in details&&details.kind==='first-party-reconnect'){
+    return <section className="mx-auto max-w-xl space-y-5 px-5 py-10">
+      <p className="text-sm text-[var(--muted)]">THIEPN Account · App connection</p>
+      <h1 className="text-2xl font-semibold">Reconnect {details.title}?</h1>
+      <p>You previously disconnected this app. It cannot automatically reconnect using your Account session.</p>
+      <p>Reconnect permits {details.title} to use only your basic THIEPN identity. Sensitive sharing and synchronization permissions remain separate and are not restored automatically.</p>
+      <p className="text-sm text-[var(--muted)]">This request is for the registered {details.appSlug} app and its verified OAuth callback.</p>
+      <div className="flex flex-wrap gap-3">
+        <button className="primary-button" disabled={busy} onClick={()=>void decide(true)}>Reconnect {details.title}</button>
+        <button className="secondary-button" disabled={busy} onClick={()=>void decide(false)}>Do not reconnect</button>
+      </div>
+      <p role="status" aria-live="polite">{busy?'Checking the request…':message}</p>
+    </section>;
+  }
+
   if(details&&'kind' in details&&details.kind==='finance-chatgpt'){
     return <section className="max-w-2xl space-y-5">
       <h1 className="text-2xl font-semibold">Connect ChatGPT to THIEPN Finance</h1>

@@ -9,10 +9,11 @@ const financeResource='https://finance.thiepn.dev/api/mcp';
 const allowedFinanceScopes=new Set(['openid','email','profile','offline_access']);
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
-export type OAuthConsentKind='hub'|'finance-chatgpt';
+export type OAuthConsentKind='hub'|'finance-chatgpt'|'first-party-reconnect';
 export type OAuthConsentDetails=
   |{authorizationId:string;owner:string;kind:'hub';title:'THIEPN Hub';scopes:['email']}
   |{authorizationId:string;owner:string;kind:'finance-chatgpt';title:'ChatGPT';scopes:string[]}
+  |{authorizationId:string;owner:string;kind:'first-party-reconnect';title:string;clientId:string;appSlug:string;redirectUri:string;approvedRedirectUrl?:string}
   |{redirectUrl:string};
 
 export interface OAuthConsentOptions{
