@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createThiepnAccountSession } from './index';
+import { createThiepnAccountSession } from '../src/index';
 import {
   createThiepnBrowserSso,
   probeThiepnAccount,
   readThiepnAccountProbeMessage,
-} from './browser-sso';
+} from '../src/browser-sso';
 
 class MemoryStorage implements Storage {
   private data = new Map<string, string>();
