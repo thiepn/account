@@ -621,7 +621,7 @@ export function createApiAccountService():AccountService{
           // Supabase invokes auth callbacks while its internal auth lock can still be held.
           // Never trigger cache work or another auth call synchronously from this callback.
           setTimeout(()=>{
-            if(active)listener(session?"signed-in":"signed-out");
+            if(active)listener(session?"signed-in":"signed-out",session?.user.id);
           },0);
         });
         return ()=>{
