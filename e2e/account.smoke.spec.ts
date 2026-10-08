@@ -114,3 +114,12 @@ test("signing out removes protected Account access",async({page})=>{
   await page.goto("/profile");
   await expect(page).toHaveURL(/\/auth\/sign-in$/);
 });
+
+test("security session list can be refreshed without creating artificial devices",async({page})=>{
+  await page.goto("/security?scenario=many-devices");
+  const refresh=page.getByRole("button",{name:"Refresh sessions"});
+  await expect(refresh).toBeVisible();
+  await refresh.click();
+  await expect(page.getByText("Firefox on Windows",{exact:true})).toHaveCount(1);
+  await expect(page.getByText("Chrome on Android",{exact:true})).toHaveCount(1);
+});
