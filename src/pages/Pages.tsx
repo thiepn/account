@@ -184,6 +184,8 @@ export function SecurityPage(){
   const capabilities=useCapabilities();
   const sessions=useDevices();
   const revokeOthers=useRevokeOtherSessions();
+  const [confirmRevokeOthers,setConfirmRevokeOthers]=useState(false);
+  const [revokeError,setRevokeError]=useState(false);
   if(q.isLoading||capabilities.isLoading||sessions.isLoading)return <Loading/>;
   if(!q.data)return <div>Could not load security status.</div>;
 
@@ -215,9 +217,28 @@ export function SecurityPage(){
       <div id="sessions" className="space-y-4 scroll-mt-20">
         {current?<div className="security-current-session rounded-xl border border-[var(--border)] bg-[var(--surface-hover)] p-4"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-semibold">{current.label}</p><p className="mt-1 text-xs text-[var(--muted)]">Current session · active now</p></div><StatusBadge tone="success">Current</StatusBadge></div></div>:null}
         {grouped.length?<div className="device-list">{grouped.map((group)=><div className="device-row" key={`${group.label}-${group.platform}`}><div><strong>{group.label}</strong><small>{group.sessionCount} session{group.sessionCount===1?"":"s"} · Last active {new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(group.lastActivityAt))}</small></div><StatusBadge>Active</StatusBadge></div>)}</div>:<EmptyState title="No other sessions" description="Only your current Account session is active."/>}
-        {otherSessionCount>0&&canRevokeOthers?<div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4"><p className="m-0 text-xs text-[var(--muted)]">{otherSessionCount} other active session{otherSessionCount===1?"":"s"} across {grouped.length} browser environment{grouped.length===1?"":"s"}.</p><Button variant="secondary" disabled={revokeOthers.isPending} onClick={()=>void revokeOthers.mutateAsync()}>{revokeOthers.isPending?"Signing out…":"Sign out all other sessions"}</Button></div>:null}
+        {otherSessionCount>0&&canRevokeOthers?<div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4"><p className="m-0 text-xs text-[var(--muted)]">{otherSessionCount} other active session{otherSessionCount===1?"":"s"} across {grouped.length} browser environment{grouped.length===1?"":"s"}.</p><Button variant="secondary" disabled={revokeOthers.isPending} onClick={()=>{setRevokeError(false);setConfirmRevokeOthers(true);}}>Sign out all other sessions</Button></div>:null}
+        {revokeError?<Notice tone="error">Other sessions could not be signed out. Your current session was not intentionally changed; refresh this page to verify session status.</Notice>:null}
       </div>
     </Panel>
+    <ConfirmDialog
+      open={confirmRevokeOthers}
+      title="Sign out all other sessions?"
+      description="This signs your Account out of other browser sessions. You will stay signed in here. Other apps may have separate sessions."
+      confirmLabel="Sign out other sessions"
+      pending={revokeOthers.isPending}
+      onCancel={()=>setConfirmRevokeOthers(false)}
+      onConfirm={async()=>{
+        try{
+          await revokeOthers.mutateAsync();
+          setConfirmRevokeOthers(false);
+          setRevokeError(false);
+        }catch{
+          setRevokeError(true);
+          setConfirmRevokeOthers(false);
+        }
+      }}
+    />
     <Panel title="Recent security activity" description="Important sign-ins and Account security changes." className="ui-panel-accent-peach">
       {capabilities.data?.securityActivityRead
         ? <><div className="activity-list">{q.data.recentActivity.map((event)=><Link className="activity-row" key={event.id} to={`/security/activity/${event.id}`}><span><strong>{event.title}</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(event.occurredAt))}</small></span><StatusBadge tone={event.severity==="warning"?"warning":event.severity==="critical"?"danger":"neutral"}>{event.category}</StatusBadge></Link>)}</div><Link className="inline-link" to="/security/activity">View all activity</Link></>
@@ -388,15 +409,28 @@ export function PrivacyPage(){
 
 export function ExportPage(){
   const exports=useExports();const request=useRequestExport();const service=useAccountService();
+  const [downloadError,setDownloadError]=useState(false);
   if(exports.isLoading)return <Loading/>;
   async function download(id:string){
-    const content=await service.privacy.getExportContent(id);
-    const url=URL.createObjectURL(new Blob([content],{type:"application/json"}));
-    const anchor=document.createElement("a");anchor.href=url;anchor.download=`thiepn-account-${id}.json`;anchor.click();URL.revokeObjectURL(url);
+    setDownloadError(false);
+    try{
+      const content=await service.privacy.getExportContent(id);
+      const url=URL.createObjectURL(new Blob([content],{type:"application/json"}));
+      const anchor=document.createElement("a");
+      anchor.href=url;
+      anchor.download=`thiepn-account-${id}.json`;
+      document.body.appendChild(anchor);
+      try{anchor.click();}finally{
+        anchor.remove();
+        // Browsers can start processing the download after the click returns.
+        window.setTimeout(()=>URL.revokeObjectURL(url),60_000);
+      }
+    }catch{setDownloadError(true);}
   }
   return <><PageHeader title="Data export" description="Create a portable copy of your THIEPN Account and supported app metadata."/>
     <div className="space-y-4">
       <Panel title="Request export" className="ui-panel-accent-blue data-accent-card" description="Exports are temporary portable artifacts, not backups."><Button disabled={request.isPending||exports.data?.some((item)=>["queued","collecting","packaging"].includes(item.status))} onClick={()=>void request.mutateAsync(undefined)}>{request.isPending?"Requesting…":"Request Account export"}</Button></Panel>
+      {downloadError?<Notice tone="error">The export could not be downloaded. Check your connection and try again; no Account data was deleted.</Notice>:null}
       <Panel title="Export history" className="ui-panel-accent-purple">{exports.data?.length?<div className="data-list">{exports.data.map((item)=><div className="data-row" key={item.id}><span><strong>Account export</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.requestedAt))}{item.expiresAt?` · expires ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.expiresAt))}`:""}</small></span>{item.status==="ready"?<Button variant="secondary" onClick={()=>void download(item.id)}>Download</Button>:<StatusBadge tone={item.status==="failed"||item.status==="expired"?"danger":"warning"}>{item.status}</StatusBadge>}</div>)}</div>:<EmptyState title="No exports" description="Requested portable exports will appear here."/ >}</Panel>
     </div>
   </>;
