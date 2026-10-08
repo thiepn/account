@@ -81,6 +81,7 @@ jobs:
           node-version: 24
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-release-certification.mjs
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
