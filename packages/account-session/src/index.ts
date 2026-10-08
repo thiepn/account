@@ -428,6 +428,11 @@ export function createThiepnAccountSession(
           code: 'ACCOUNT_VERIFY_UNAVAILABLE',
         });
       const user = userResponse(await response.json());
+      const latest = readTokens();
+      if (!latest) return publish({ status: 'signed-out' });
+      if (latest.accessToken !== tokens.accessToken) {
+        return publish({ status: 'unavailable', code: 'ACCOUNT_SESSION_CHANGED' });
+      }
       return publish({
         status: 'signed-in',
         id: user.id,
