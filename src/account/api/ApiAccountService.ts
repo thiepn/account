@@ -10,6 +10,7 @@ import {oauthConsentRedirect,parseOAuthConsentDetails,type OAuthConsentDetails} 
 import {createSingleFlight} from './singleFlight';
 import {
   firstPartyOAuthRedirect,
+  firstPartyOAuthDeniedRedirect,
   firstPartyOAuthRedirectTarget,
   firstPartyOAuthRequest,
   parseFirstPartyOAuthRegistration,
@@ -801,12 +802,8 @@ export function createApiAccountService():AccountService{
         if(details.kind==='first-party-reconnect'){
           const {data:active,error:activeError}=await supabase.auth.getUser();
           if(activeError||active.user?.id!==owner)throw mapError(activeError,'OAUTH_CONSENT_UNAVAILABLE');
-          if(!approve&&details.approvedRedirectUrl){
-            const declined=new URL(details.approvedRedirectUrl);
-            declined.searchParams.delete('code');
-            declined.searchParams.set('error','access_denied');
-            return firstPartyOAuthRedirect(declined.href,details.redirectUri);
-          }
+          if(!approve&&details.approvedRedirectUrl)
+            return firstPartyOAuthDeniedRedirect(details.approvedRedirectUrl,details.redirectUri);
           if(approve){
             const {error:connectionError}=await supabase.rpc('ensure_thiepn_first_party_app_connection',{
               p_client_id:details.clientId,p_app_slug:details.appSlug,
