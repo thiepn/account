@@ -593,7 +593,12 @@ export function SignInPage(){
     try{
       const result=await service.auth.signIn(returnTo);
       if(!result.redirecting){
-        await queryClient.invalidateQueries({queryKey:["auth"]});
+        // An inactive auth query can still cache "signed-out". Invalidating
+        // it alone does not refetch, so the protected route would immediately
+        // redirect back to sign-in after a successful login.
+        const verified=await service.auth.getState();
+        if(verified!=="signed-in")throw new Error("ACCOUNT_SIGNIN_NOT_VERIFIED");
+        queryClient.setQueryData(["auth","state"],verified);
         navigate(returnTo,{replace:true});
         setSigningIn(false);
       }
@@ -611,7 +616,7 @@ export function SignInPage(){
 }
 export function AuthCallbackPage(){
   const service=useAccountService();const navigate=useNavigate();const queryClient=useQueryClient();const [failed,setFailed]=useState(false);
-  useEffect(()=>{let active=true;(async()=>{try{const returnTo=await service.auth.completeCallback();if(!active)return;await queryClient.invalidateQueries({queryKey:["auth"]});navigate(returnTo,{replace:true});}catch{if(active)setFailed(true);}})();return()=>{active=false;};},[service,navigate,queryClient]);
+  useEffect(()=>{let active=true;(async()=>{try{const returnTo=await service.auth.completeCallback();if(!active)return;const verified=await service.auth.getState();if(!active)return;if(verified!=="signed-in")throw new Error("ACCOUNT_CALLBACK_NOT_VERIFIED");queryClient.setQueryData(["auth","state"],verified);navigate(returnTo,{replace:true});}catch{if(active)setFailed(true);}})();return()=>{active=false;};},[service,navigate,queryClient]);
   if(failed)return <main className="auth-screen"><section className="auth-card"><div className="auth-brand"><strong>THIEPN</strong><span>Account</span></div><h1>Sign-in couldn’t be completed.</h1><p>The OAuth callback could not establish your Account session.</p><Link className="inline-link mt-4" to="/auth/sign-in">Try again</Link></section></main>;
   return <main className="auth-screen"><section className="auth-card"><div className="auth-brand"><strong>THIEPN</strong><span>Account</span></div><h1>Signing you in…</h1><p>Verifying your secure Account session.</p></section></main>;
 }
