@@ -549,3 +549,6 @@ export function createThiepnAccountSession(
 export type ThiepnAccountSession = ReturnType<
   typeof createThiepnAccountSession
 >;
+
+export { createThiepnBrowserSso, probeThiepnAccount, readThiepnAccountProbeMessage } from './browser-sso';
+export type { ThiepnBrowserSso, ThiepnBrowserSsoOptions, ThiepnBrowserSsoStatus, ThiepnAccountProbe } from './browser-sso';
