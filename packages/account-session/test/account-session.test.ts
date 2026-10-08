@@ -484,3 +484,45 @@ describe('OAuth callback session continuity', () => {
     expect(JSON.parse(local.getItem(`${storageKey}:tokens`)??'{}')).toEqual(newer);
   });
 });
+
+describe('TLS-only first-party OAuth configuration',()=>{
+  const base={
+    issuer:'https://example.supabase.co',
+    publishableKey:'sb_publishable_abcdefghijklmnopqrstuvwxyz',
+    clientId:'123e4567-e89b-42d3-a456-426614174000',
+    redirectUri:'https://app.thiepn.dev/auth/callback/',
+    storageKey:'thiepn:tls-policy:v1',
+    authPolicy:'guest-first' as const,
+    localStorage:new MemoryStorage(),
+    sessionStorage:new MemoryStorage(),
+  };
+  it.each([
+    'http://example.supabase.co',
+    'http://192.168.1.10:54321',
+    'http://supabase.internal',
+    'http://account.thiepn.dev',
+  ])('rejects insecure non-loopback OAuth issuer: %s',(issuer)=>{
+    expect(()=>createThiepnAccountSession({...base,issuer})).toThrow('issuer');
+  });
+  it.each([
+    'http://app.thiepn.dev/auth/callback/',
+    'http://10.0.0.2:3000/callback',
+    'http://app.local/callback',
+    'https://name:password@app.thiepn.dev/auth/callback/',
+    'https://app.thiepn.dev/auth/callback/?token=secret',
+    'https://app.thiepn.dev/auth/callback/#token',
+  ])('rejects insecure or ambiguous redirect URI: %s',(redirectUri)=>{
+    expect(()=>createThiepnAccountSession({...base,redirectUri})).toThrow('redirectUri');
+  });
+  it.each([
+    ['http://localhost:54321','http://localhost:4173/auth/callback/'],
+    ['http://127.0.0.1:54321','http://127.0.0.1:4173/auth/callback/'],
+    ['http://[::1]:54321','http://[::1]:4173/auth/callback/'],
+  ])('permits explicit local loopback development: %s',async(issuer,redirectUri)=>{
+    const session=createThiepnAccountSession({...base,issuer,redirectUri});
+    const url=new URL(await session.authorizationUrl());
+    expect(url.origin).toBe(new URL(issuer).origin);
+    expect(url.searchParams.get('redirect_uri')).toBe(redirectUri);
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+  });
+});
