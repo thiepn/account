@@ -19,6 +19,7 @@ jobs:
           node-version: 24
       - run: corepack enable
       - run: pnpm check:oauth-workflows
+      - run: node --test scripts/first-party-onboarding-contract.test.mjs
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - name: Enforce frontend backend-boundary imports
