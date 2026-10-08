@@ -9,5 +9,21 @@ export function validateReturnTo(value:unknown):string{
     return url.pathname+url.search+url.hash;
   }catch{return "/";}
 }
-export function saveReturnTo(value:unknown){sessionStorage.setItem(STORAGE_KEY,validateReturnTo(value));}
-export function consumeReturnTo(){const value=validateReturnTo(sessionStorage.getItem(STORAGE_KEY));sessionStorage.removeItem(STORAGE_KEY);return value;}
+export function saveReturnTo(value:unknown,storage?:Storage):boolean{
+  try{
+    (storage??globalThis.sessionStorage).setItem(STORAGE_KEY,validateReturnTo(value));
+    return true;
+  }catch{
+    // A blocked browser storage area must never turn a safe navigation
+    // target into an authentication failure. Callback falls back to "/".
+    return false;
+  }
+}
+export function consumeReturnTo(storage?:Storage):string{
+  try{
+    const area=storage??globalThis.sessionStorage;
+    const value=validateReturnTo(area.getItem(STORAGE_KEY));
+    area.removeItem(STORAGE_KEY);
+    return value;
+  }catch{return "/";}
+}

@@ -555,8 +555,13 @@ export function createApiAccountService():AccountService{
         return data.user?"signed-in":"session-expired";
       },
       async signIn(returnTo){
-        sessionStorage.removeItem("thiepn.account.authPurpose");
-        sessionStorage.removeItem("thiepn.account.expectedAccountId");
+        try{
+          // A fresh native sign-in must not inherit a stale reauth marker.
+          sessionStorage.removeItem("thiepn.account.authPurpose");
+          sessionStorage.removeItem("thiepn.account.expectedAccountId");
+        }catch{
+          throw normalizedError("AUTH_BROWSER_STORAGE_UNAVAILABLE","authentication",false);
+        }
         saveReturnTo(returnTo??"/");
         const {error}=await supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo:`${getAccountOAuthOrigin()}/auth/callback`}});
         if(error)throw mapError(error,"OAUTH_START_FAILED");
@@ -597,22 +602,36 @@ export function createApiAccountService():AccountService{
       },
       async reauthenticate(returnTo){
         const user=await getUser();
-        saveReturnTo(returnTo??"/");
-        sessionStorage.setItem("thiepn.account.authPurpose","reauth");
-        sessionStorage.setItem("thiepn.account.expectedAccountId",user.id);
-        const {error}=await supabase.auth.signInWithOAuth({
-          provider:"google",
-          options:{
-            redirectTo:`${getAccountOAuthOrigin()}/auth/callback`,
-            queryParams:{prompt:"login"},
-          },
-        });
-        if(error){
-          sessionStorage.removeItem("thiepn.account.authPurpose");
-          sessionStorage.removeItem("thiepn.account.expectedAccountId");
-          throw mapError(error,"REAUTH_START_FAILED");
+        // The reauth marker and expected Account UUID are a single security
+        // boundary. Never begin Google reauthentication with half-written state.
+        try{
+          saveReturnTo(returnTo??"/");
+          sessionStorage.setItem("thiepn.account.authPurpose","reauth");
+          sessionStorage.setItem("thiepn.account.expectedAccountId",user.id);
+        }catch{
+          try{
+            sessionStorage.removeItem("thiepn.account.authPurpose");
+            sessionStorage.removeItem("thiepn.account.expectedAccountId");
+          }catch{}
+          throw normalizedError("REAUTH_BROWSER_STORAGE_UNAVAILABLE","authentication",false);
         }
-        return {redirecting:true};
+        try{
+          const {error}=await supabase.auth.signInWithOAuth({
+            provider:"google",
+            options:{
+              redirectTo:`${getAccountOAuthOrigin()}/auth/callback`,
+              queryParams:{prompt:"login"},
+            },
+          });
+          if(error)throw mapError(error,"REAUTH_START_FAILED");
+          return {redirecting:true};
+        }catch(error){
+          try{
+            sessionStorage.removeItem("thiepn.account.authPurpose");
+            sessionStorage.removeItem("thiepn.account.expectedAccountId");
+          }catch{}
+          throw error;
+        }
       },
       async signOut(){
         const {error}=await supabase.auth.signOut({scope:"local"});
