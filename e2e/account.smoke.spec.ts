@@ -123,3 +123,21 @@ test("security session list can be refreshed without creating artificial devices
   await expect(page.getByText("Firefox on Windows",{exact:true})).toHaveCount(1);
   await expect(page.getByText("Chrome on Android",{exact:true})).toHaveCount(1);
 });
+
+test("sensitive confirmation traps keyboard focus and returns focus after dismissal",async({page})=>{
+  await page.goto("/security?scenario=many-devices");
+  const trigger=page.getByRole("button",{name:"Sign out all other sessions"});
+  await trigger.focus();
+  await trigger.click();
+  const dialog=page.getByRole("alertdialog",{name:"Sign out all other sessions?"});
+  const cancel=dialog.getByRole("button",{name:"Cancel"});
+  const confirm=dialog.getByRole("button",{name:"Sign out other sessions"});
+  await expect(cancel).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(confirm).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(cancel).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
