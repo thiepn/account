@@ -11,6 +11,7 @@ export function OAuthConsentPage(){
 
   useEffect(()=>{
     let active=true;
+    let observedOwner:string|null|undefined=undefined;
     const load=async()=>{
       const epoch=++generation.current;
       setDetails(null);setBusy(true);setMessage('');
@@ -25,9 +26,15 @@ export function OAuthConsentPage(){
         if(active&&epoch===generation.current)setBusy(false);
       }
     };
-    const off=service.auth.subscribe(()=>{
+    const off=service.auth.subscribe((state,accountId)=>{
+      const owner=state==="signed-in"?(accountId??null):null;
+      // INITIAL_SESSION and token refreshes can fire during OAuth consent.
+      // Replaying an unchanged authorization could issue a duplicate code.
+      if(observedOwner===undefined){observedOwner=owner;return;}
+      if(observedOwner===owner)return;
+      observedOwner=owner;
       ++generation.current;setDetails(null);setBusy(true);
-      queueMicrotask(()=>{if(active)void load();});
+      globalThis.setTimeout(()=>{if(active)void load();},0);
     });
     void load();
     return()=>{active=false;off();++generation.current;};
