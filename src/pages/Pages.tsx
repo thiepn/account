@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApp, useAppData, useAppDataList, useApps, useBackup, useBackups, useBackupSummary, useCapabilities, useCreateBackup, useDataSummary, useDevices, useDisconnectApp, useGrantPermission, useOverview, usePrivacySummary, useAccountDeletion, useCancelAccountDeletion, useExport, useExports, usePlanAccountDeletion, usePlanAppDataDeletion, usePlanRestore, useProfile, useRequestAccountDeletion, useRequestExport, useRestoreOperation, useRetrySync, useRevokeOtherSessions, useRevokePermission, useSecurity, useSecurityActivity, useSecurityEvent, useStartAppDataDeletion, useStartRestore, useUpdateProfile, useUpdateSyncConfiguration } from "../account/hooks";
@@ -400,7 +400,16 @@ export function BackupDetailPage(){
 export function RestorePage(){
   const [params]=useSearchParams();const backupId=params.get("backup")??undefined;const backup=useBackup(backupId);const planMutation=usePlanRestore();const start=useStartRestore();const navigate=useNavigate();const runSensitive=useSensitiveAction();
   const [selected,setSelected]=useState<string[]>([]);
-  useEffect(()=>{if(backup.data&&!selected.length)setSelected(backup.data.apps.map((item)=>item.appId));},[backup.data,selected.length]);
+  const initializedBackupId=useRef<string|null>(null);
+  const [restoreError,setRestoreError]=useState<string|null>(null);
+  useEffect(()=>{
+    if(backup.data&&backup.data.id!==initializedBackupId.current){
+      initializedBackupId.current=backup.data.id;
+      setSelected(backup.data.apps.map((item)=>item.appId));
+      planMutation.reset();
+      setRestoreError(null);
+    }
+  },[backup.data,planMutation.reset]);
   if(!backupId)return <><PageHeader title="Restore" description="Choose a backup from Backup history before starting a restore."/><Link className="inline-link" to="/data/backups">Choose a backup</Link></>;
   if(backup.isLoading)return <Loading/>;
   if(backup.isError&&!backup.data)return <LoadFailure message="Could not retrieve the selected recovery snapshot." retry={()=>void backup.refetch()}/>;
@@ -408,9 +417,23 @@ export function RestorePage(){
   const plan=planMutation.data;
   return <><PageHeader title="Restore cloud data" description="Restore selected app namespaces from a verified recovery snapshot."/>
     <div className="space-y-4">
+      {restoreError?<Notice tone="error">{restoreError}</Notice>:null}
       <Notice tone="warning">Restore replaces selected live cloud data. A verified pre-restore safety snapshot is created first, and sync clients must reconcile afterward.</Notice>
-      <Panel title="Select apps">{backup.data.apps.map((app)=><label className="check-row" key={app.appId}><input type="checkbox" checked={selected.includes(app.appId)} onChange={(event)=>setSelected((current)=>event.target.checked?[...current,app.appId]:current.filter((id)=>id!==app.appId))}/><span><strong>{app.appName}</strong><small>Backup generation {app.sourceGeneration}, revision {app.sourceRevision}</small></span></label>)}</Panel>
-      {!plan?<Button disabled={planMutation.isPending||!selected.length} onClick={()=>void planMutation.mutateAsync({backupId:backup.data!.id,selectedApps:selected})}>{planMutation.isPending?"Preparing…":"Review restore"}</Button>:<Panel title="Restore review">{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}<p className="text-sm text-[var(--muted)]">A safety snapshot will be created before {plan.selectedApps.length} app namespace{plan.selectedApps.length===1?" is":"s are"} replaced.</p><Button variant="danger" disabled={Boolean(plan.blockers.length)||start.isPending} onClick={async()=>{const operation=await runSensitive(()=>start.mutateAsync(plan.id));if(operation)navigate(`/data/restore/${operation.id}`);}}>{start.isPending?"Starting…":"Confirm restore"}</Button></Panel>}
+      <Panel title="Select apps">{backup.data.apps.map((app)=><label className="check-row" key={app.appId}><input type="checkbox" checked={selected.includes(app.appId)} onChange={(event)=>{
+        planMutation.reset();
+        setRestoreError(null);
+        setSelected((current)=>event.target.checked?[...current,app.appId]:current.filter((id)=>id!==app.appId));
+      }}/><span><strong>{app.appName}</strong><small>Backup generation {app.sourceGeneration}, revision {app.sourceRevision}</small></span></label>)}</Panel>
+      {!plan?<Button disabled={planMutation.isPending||!selected.length} onClick={()=>{
+          setRestoreError(null);
+          void planMutation.mutateAsync({backupId:backup.data!.id,selectedApps:selected}).catch(()=>setRestoreError("Restore review could not be prepared. No data was restored."));
+        }}>{planMutation.isPending?"Preparing…":"Review restore"}</Button>:<Panel title="Restore review">{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}<p className="text-sm text-[var(--muted)]">A safety snapshot will be created before {plan.selectedApps.length} app namespace{plan.selectedApps.length===1?" is":"s are"} replaced.</p><Button variant="danger" disabled={Boolean(plan.blockers.length)||start.isPending} onClick={async()=>{
+          setRestoreError(null);
+          try{
+            const operation=await runSensitive(()=>start.mutateAsync(plan.id));
+            if(operation)navigate(`/data/restore/${operation.id}`);
+          }catch{setRestoreError("Restore could not be started. Verify the current operation status before retrying.");}
+        }}>{start.isPending?"Starting…":"Confirm restore"}</Button></Panel>}
     </div>
   </>;
 }
