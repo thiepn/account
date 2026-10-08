@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createThiepnAccountSession } from '../src/index';
+import { createThiepnAccountSession, type ThiepnAccountSession, type ThiepnIdentity } from '../src/index';
 import {
   createThiepnBrowserSso,
   probeThiepnAccount,
@@ -132,5 +132,88 @@ describe('first-party Account browser bootstrap', () => {
     await expect(sso.completeCallback({
       href:'https://attacker.test/auth/callback/?code=one&state=two',hash:'',
     })).resolves.toEqual({status:'unavailable',code:'ACCOUNT_CALLBACK_ORIGIN_MISMATCH'});
+  });
+});
+
+describe('Account SDK silent-SSO cancellation and PKCE single-flight',()=>{
+  const authorization = 'https://example.supabase.co/auth/v1/oauth/authorize?response_type=code';
+  function fakeSession(overrides: Partial<ThiepnAccountSession>={}): ThiepnAccountSession{
+    return {
+      clientId:CLIENT_ID,
+      issuer:'https://example.supabase.co',
+      redirectUri:'https://languages.thiepn.dev/auth/callback/',
+      authPolicy:'guest-first',
+      verify:vi.fn(async()=>({status:'signed-out'} as ThiepnIdentity)),
+      authorizationUrl:vi.fn(async()=>authorization),
+      signOutLocal:vi.fn(()=>({status:'signed-out'} as ThiepnIdentity)),
+      completeCallback:vi.fn(async()=>({status:'signed-out'} as ThiepnIdentity)),
+      getAccessToken:vi.fn(async()=>null),
+      identity:vi.fn(()=>({status:'signed-out'} as ThiepnIdentity)),
+      subscribe:vi.fn(()=>()=>{}),
+      ...overrides,
+    } as ThiepnAccountSession;
+  }
+
+  it('does not redirect after user sign-out while a silent Account probe is pending',async()=>{
+    const navigate=vi.fn();
+    const storage=new MemoryStorage();
+    const sso=createThiepnBrowserSso(session(),{accountOrigin:ACCOUNT,optOutStorage:storage,navigate});
+    const pending=sso.initialize();
+    await vi.waitFor(()=>expect(document.querySelector('iframe')).not.toBeNull());
+    const frame=document.querySelector('iframe')!;
+    expect(sso.signOutLocal()).toEqual({status:'signed-out'});
+    sendProbe(frame,valid);
+    await expect(pending).resolves.toEqual({status:'ready',identity:{status:'signed-out'}});
+    expect(navigate).not.toHaveBeenCalled();
+    expect(storage.getItem(`thiepn:sso:${CLIENT_ID}:manual-signout`)).toBe('1');
+  });
+
+  it('does not expose a stale signed-in identity after a deliberate sign-out during verification',async()=>{
+    let finish:(identity:ThiepnIdentity)=>void=()=>{};
+    const auth=fakeSession({
+      verify:vi.fn(()=>new Promise<ThiepnIdentity>(resolve=>{finish=resolve;})),
+    });
+    const navigate=vi.fn();
+    const sso=createThiepnBrowserSso(auth,{accountOrigin:ACCOUNT,navigate,optOutStorage:new MemoryStorage()});
+    const pending=sso.initialize();
+    sso.signOutLocal();
+    finish({status:'signed-in',id:CLIENT_ID,email:null});
+    await expect(pending).resolves.toEqual({status:'ready',identity:{status:'signed-out'}});
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('uses exactly one PKCE authorization request for two simultaneous explicit connects',async()=>{
+    let finish:(url:string)=>void=()=>{};
+    const authorizationUrl=vi.fn(()=>new Promise<string>(resolve=>{finish=resolve;}));
+    const auth=fakeSession({authorizationUrl});
+    const navigate=vi.fn();
+    const sso=createThiepnBrowserSso(auth,{accountOrigin:ACCOUNT,navigate,optOutStorage:new MemoryStorage()});
+    const a=sso.connect(),b=sso.connect();
+    expect(a).toBe(b);
+    expect(authorizationUrl).toHaveBeenCalledTimes(1);
+    finish(authorization);
+    await Promise.all([a,b]);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(authorization);
+  });
+
+  it('serializes a new connect behind a PKCE request cancelled by sign-out',async()=>{
+    let finish:(url:string)=>void=()=>{};
+    const authorizationUrl=vi.fn()
+      .mockImplementationOnce(()=>new Promise<string>(resolve=>{finish=resolve;}))
+      .mockResolvedValue(authorization);
+    const navigate=vi.fn();
+    const sso=createThiepnBrowserSso(fakeSession({authorizationUrl}),{
+      accountOrigin:ACCOUNT,navigate,optOutStorage:new MemoryStorage(),
+    });
+    const abandoned=sso.connect();
+    sso.signOutLocal();
+    const resumed=sso.connect();
+    expect(authorizationUrl).toHaveBeenCalledTimes(1);
+    finish(authorization);
+    await abandoned;
+    await resumed;
+    expect(authorizationUrl).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 });
