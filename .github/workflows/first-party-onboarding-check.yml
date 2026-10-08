@@ -1,0 +1,44 @@
+name: First-Party App Onboarding Check
+
+# Operator-initiated verification only. This workflow NEVER creates OAuth clients.
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: "Public HTTPS app URL, e.g. https://thiepn.dev/library/"
+        required: true
+        type: string
+      client_id:
+        description: "Registered first-party public OAuth client UUID"
+        required: true
+        type: string
+      callback_url:
+        description: "Exact production OAuth redirect URI on the same app origin"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      APP_URL: ${{ inputs.app_url }}
+      CLIENT_ID: ${{ inputs.client_id }}
+      CALLBACK_URL: ${{ inputs.callback_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: node --test scripts/first-party-onboarding-contract.test.mjs
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Verify real first-party OAuth onboarding contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-first-party-onboarding.mjs "$APP_URL" "$CLIENT_ID" "$CALLBACK_URL"
