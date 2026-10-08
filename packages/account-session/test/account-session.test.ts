@@ -184,3 +184,131 @@ describe('THIEPN account session contract', () => {
     );
   });
 });
+
+describe('Account refresh reliability',()=>{
+  const storageKey='thiepn:test-resilience:v1';
+  const initial={
+    accessToken:'expired-access-token-123456789',
+    refreshToken:'expired-refresh-token-123456789',
+    expiresAt:1_000_000,
+    scope:'openid email',
+  };
+  const response=(access_token='fresh-access-token-123456789')=>new Response(JSON.stringify({
+    access_token,
+    refresh_token:'fresh-refresh-token-123456789',
+    expires_in:3600,
+    token_type:'bearer',
+    scope:'openid email',
+  }),{status:200,headers:{'Content-Type':'application/json'}});
+  const identity=()=>new Response(JSON.stringify({id:'123e4567-e89b-42d3-a456-426614174000',email:'person@example.test'}),{status:200,headers:{'Content-Type':'application/json'}});
+  const make=(storage:MemoryStorage,transport:typeof fetch)=>{
+    storage.setItem(`${storageKey}:tokens`,JSON.stringify(initial));
+    return createThiepnAccountSession({
+      issuer:'https://example.supabase.co',
+      publishableKey:'sb_publishable_abcdefghijklmnopqrstuvwxyz',
+      clientId:'123e4567-e89b-42d3-a456-426614174000',
+      redirectUri:'https://languages.thiepn.dev/auth/callback/',
+      storageKey,
+      authPolicy:'guest-first',
+      localStorage:storage,
+      sessionStorage:new MemoryStorage(),
+      now:()=>2_000_000,
+      fetch:transport,
+    });
+  };
+
+  it('does not forget a signed-in user during a temporary token-service outage',async()=>{
+    const local=new MemoryStorage();
+    let fail=true;
+    const session=make(local,async input=>{
+      const url=String(input);
+      if(url.endsWith('/oauth/token')){
+        if(fail)return new Response(JSON.stringify({error:'server_error'}),{status:503});
+        return response();
+      }
+      return identity();
+    });
+    await expect(session.verify()).resolves.toEqual({
+      status:'unavailable',code:'ACCOUNT_REFRESH_UNAVAILABLE',
+    });
+    expect(JSON.parse(local.getItem(`${storageKey}:tokens`)??'{}').refreshToken).toBe(initial.refreshToken);
+    fail=false;
+    await expect(session.verify()).resolves.toEqual({
+      status:'signed-in',id:'123e4567-e89b-42d3-a456-426614174000',email:'person@example.test',
+    });
+  });
+
+  it('coalesces simultaneous refresh requests from the same app tab',async()=>{
+    const local=new MemoryStorage();
+    let refreshes=0;
+    const session=make(local,async input=>{
+      if(String(input).endsWith('/oauth/token')){
+        ++refreshes;
+        await new Promise(resolve=>setTimeout(resolve,10));
+        return response();
+      }
+      return identity();
+    });
+    const result=await Promise.all([session.verify(),session.verify(),session.getAccessToken()]);
+    expect(result[0]).toMatchObject({status:'signed-in'});
+    expect(result[1]).toMatchObject({status:'signed-in'});
+    expect(result[2]).toBe('fresh-access-token-123456789');
+    expect(refreshes).toBe(1);
+  });
+
+  it('never recreates an app session after sign-out while refresh was pending',async()=>{
+    const local=new MemoryStorage();
+    let completeRefresh:(value:Response)=>void=()=>{};
+    let notifyStarted:()=>void=()=>{};
+    const started=new Promise<void>(resolve=>{notifyStarted=resolve;});
+    const session=make(local,async input=>{
+      if(String(input).endsWith('/oauth/token')){
+        notifyStarted();
+        return await new Promise<Response>(resolve=>{completeRefresh=resolve;});
+      }
+      return identity();
+    });
+    const pending=session.verify();
+    await started;
+    session.signOutLocal();
+    completeRefresh(response());
+    await expect(pending).resolves.toMatchObject({status:'signed-out'});
+    expect(local.getItem(`${storageKey}:tokens`)).toBeNull();
+  });
+
+  it('clears credentials after a permanently revoked OAuth refresh grant',async()=>{
+    const local=new MemoryStorage();
+    const session=make(local,async()=>new Response(JSON.stringify({error:'invalid_grant'}),{status:400}));
+    await expect(session.verify()).resolves.toMatchObject({status:'signed-out'});
+    expect(local.getItem(`${storageKey}:tokens`)).toBeNull();
+  });
+
+  it('does not publish a stale identity after a session is signed out during verification',async()=>{
+    const local=new MemoryStorage();
+    const access='valid-access-token-123456789';
+    local.setItem(`${storageKey}:tokens`,JSON.stringify({...initial,accessToken:access,expiresAt:3_000_000}));
+    let releaseUser:(response:Response)=>void=()=>{};
+    let notifyStarted:()=>void=()=>{};
+    const started=new Promise<void>(resolve=>{notifyStarted=resolve;});
+    const session=createThiepnAccountSession({
+      issuer:'https://example.supabase.co',
+      publishableKey:'sb_publishable_abcdefghijklmnopqrstuvwxyz',
+      clientId:'123e4567-e89b-42d3-a456-426614174000',
+      redirectUri:'https://languages.thiepn.dev/auth/callback/',
+      storageKey,
+      authPolicy:'guest-first',
+      localStorage:local,
+      sessionStorage:new MemoryStorage(),
+      now:()=>2_000_000,
+      fetch:async()=>{
+        notifyStarted();
+        return await new Promise<Response>(resolve=>{releaseUser=resolve;});
+      },
+    });
+    const verifying=session.verify();
+    await started;
+    session.signOutLocal();
+    releaseUser(identity());
+    await expect(verifying).resolves.toMatchObject({status:'signed-out'});
+  });
+});

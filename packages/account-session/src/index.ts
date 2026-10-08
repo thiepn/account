@@ -274,6 +274,7 @@ export function createThiepnAccountSession(
 
   let current: ThiepnIdentity = { status: 'signed-out' };
   const listeners = new Set<(identity: ThiepnIdentity) => void>();
+  let refreshFlight: Promise<StoredTokens | null> | null = null;
 
   function publish(identity: ThiepnIdentity): ThiepnIdentity {
     current = identity;
@@ -327,39 +328,84 @@ export function createThiepnAccountSession(
       signal: AbortSignal.timeout(timeoutMs),
     });
     const payload: unknown = await response.json();
-    if (!response.ok) throw new Error('ACCOUNT_TOKEN_EXCHANGE_FAILED');
+    if (!response.ok) {
+      const oauthError = payload && typeof payload === 'object' &&
+        'error' in payload ? (payload as {error?:unknown}).error : null;
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        (response.status === 400 && oauthError === 'invalid_grant')
+      ) throw new Error('ACCOUNT_TOKEN_REVOKED');
+      throw new Error('ACCOUNT_TOKEN_EXCHANGE_UNAVAILABLE');
+    }
     return tokenResponse(payload);
   }
 
-  async function refresh(tokens: StoredTokens): Promise<StoredTokens> {
-    try {
-      const refreshed = await postToken(
-        new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: tokens.refreshToken,
-          client_id: clientId,
-        }),
-      );
-      return writeTokens(refreshed);
-    } catch {
-      clearTokens();
-      throw new Error('ACCOUNT_REFRESH_FAILED');
-    }
+  async function refresh(tokens: StoredTokens): Promise<StoredTokens | null> {
+    if (refreshFlight) return refreshFlight;
+
+    const run = async (): Promise<StoredTokens | null> => {
+      const perform = async (): Promise<StoredTokens | null> => {
+        // Another tab may have rotated the refresh token while this tab waited.
+        const currentTokens = readTokens();
+        if (!currentTokens) return null;
+        if (currentTokens.refreshToken !== tokens.refreshToken) return currentTokens;
+        if (currentTokens.expiresAt - TOKEN_SKEW_MS > now()) return currentTokens;
+
+        try {
+          const refreshed = await postToken(
+            new URLSearchParams({
+              grant_type: 'refresh_token',
+              refresh_token: currentTokens.refreshToken,
+              client_id: clientId,
+            }),
+          );
+          // A user may sign out or switch identities during an in-flight fetch.
+          // Never resurrect credentials or overwrite newer tokens afterward.
+          const latest = readTokens();
+          if (!latest) return null;
+          if (latest.refreshToken !== currentTokens.refreshToken) return latest;
+          return writeTokens(refreshed);
+        } catch (error) {
+          const latest = readTokens();
+          if (!latest || latest.refreshToken !== currentTokens.refreshToken) return latest;
+          if (error instanceof Error && error.message === 'ACCOUNT_TOKEN_REVOKED') {
+            clearTokens();
+            return null;
+          }
+          // An outage is not an authentication failure; retry later.
+          throw new Error('ACCOUNT_REFRESH_UNAVAILABLE');
+        }
+      };
+      const locks = globalThis.navigator?.locks;
+      return locks
+        ? locks.request(`${storageKey}:oauth-refresh`, perform)
+        : perform();
+    };
+
+    const promise = run();
+    refreshFlight = promise;
+    void promise.then(
+      () => { if (refreshFlight === promise) refreshFlight = null; },
+      () => { if (refreshFlight === promise) refreshFlight = null; },
+    );
+    return promise;
   }
 
   async function usableTokens(): Promise<StoredTokens | null> {
     const stored = readTokens();
     if (!stored) return null;
     if (stored.expiresAt - TOKEN_SKEW_MS > now()) return stored;
-    try {
-      return await refresh(stored);
-    } catch {
-      return null;
-    }
+    return refresh(stored);
   }
 
   async function verify(): Promise<ThiepnIdentity> {
-    const tokens = await usableTokens();
+    let tokens: StoredTokens | null;
+    try {
+      tokens = await usableTokens();
+    } catch {
+      return publish({ status: 'unavailable', code: 'ACCOUNT_REFRESH_UNAVAILABLE' });
+    }
     if (!tokens) return publish({ status: 'signed-out' });
     try {
       const response = await transport(new URL('/auth/v1/user', issuer), {
@@ -382,6 +428,11 @@ export function createThiepnAccountSession(
           code: 'ACCOUNT_VERIFY_UNAVAILABLE',
         });
       const user = userResponse(await response.json());
+      const latest = readTokens();
+      if (!latest) return publish({ status: 'signed-out' });
+      if (latest.accessToken !== tokens.accessToken) {
+        return publish({ status: 'unavailable', code: 'ACCOUNT_SESSION_CHANGED' });
+      }
       return publish({
         status: 'signed-in',
         id: user.id,
