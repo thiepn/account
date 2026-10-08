@@ -275,6 +275,8 @@ export function createThiepnAccountSession(
   let current: ThiepnIdentity = { status: 'signed-out' };
   const listeners = new Set<(identity: ThiepnIdentity) => void>();
   let refreshFlight: Promise<StoredTokens | null> | null = null;
+  let callbackFlight: Promise<ThiepnIdentity> | null = null;
+  let signOutGeneration = 0;
 
   function publish(identity: ThiepnIdentity): ThiepnIdentity {
     current = identity;
@@ -471,60 +473,90 @@ export function createThiepnAccountSession(
     return url.href;
   }
 
-  async function completeCallback(
+  function completeCallback(
     location: Pick<Location, 'href' | 'hash'>,
   ): Promise<ThiepnIdentity> {
-    const actual = new URL(location.href);
-    const expected = new URL(redirectUri);
-    if (actual.origin !== expected.origin || actual.pathname !== expected.pathname) {
-      return publish({ status: 'unavailable', code: 'ACCOUNT_CALLBACK_INVALID' });
-    }
-    const callback = readThiepnOAuthCallback(location);
-    const pending = parseJson<Partial<PendingAuthorization>>(
-      session.getItem(pendingKey),
-    );
-    session.removeItem(pendingKey);
+    if (callbackFlight) return callbackFlight;
 
-    if (
-      !callback ||
-      !pending ||
-      typeof pending.state !== 'string' ||
-      pending.state !== callback.state ||
-      typeof pending.verifier !== 'string' ||
-      !VERIFIER_RE.test(pending.verifier) ||
-      typeof pending.startedAt !== 'number' ||
-      now() < pending.startedAt ||
-      now() - pending.startedAt > PENDING_TTL_MS
-    ) {
-      return publish({
-        status: 'unavailable',
-        code: 'ACCOUNT_CALLBACK_INVALID',
-      });
-    }
-
-    if ('error' in callback) {
-      return publish({ status: 'signed-out' });
-    }
-
-    try {
-      const result = await postToken(
-        new URLSearchParams({
-          grant_type: 'authorization_code',
-          code: callback.code,
-          client_id: clientId,
-          redirect_uri: redirectUri,
-          code_verifier: pending.verifier,
-        }),
+    const run = async (): Promise<ThiepnIdentity> => {
+      const actual = new URL(location.href);
+      const expected = new URL(redirectUri);
+      if (actual.origin !== expected.origin || actual.pathname !== expected.pathname) {
+        return publish({ status: 'unavailable', code: 'ACCOUNT_CALLBACK_INVALID' });
+      }
+      const callback = readThiepnOAuthCallback(location);
+      const pending = parseJson<Partial<PendingAuthorization>>(
+        session.getItem(pendingKey),
       );
-      writeTokens(result);
-      return await verify();
-    } catch {
-      clearTokens();
-      return publish({
-        status: 'unavailable',
-        code: 'ACCOUNT_CODE_EXCHANGE_FAILED',
-      });
-    }
+      session.removeItem(pendingKey);
+
+      if (
+        !callback ||
+        !pending ||
+        typeof pending.state !== 'string' ||
+        pending.state !== callback.state ||
+        typeof pending.verifier !== 'string' ||
+        !VERIFIER_RE.test(pending.verifier) ||
+        typeof pending.startedAt !== 'number' ||
+        now() < pending.startedAt ||
+        now() - pending.startedAt > PENDING_TTL_MS
+      ) {
+        return publish({
+          status: 'unavailable',
+          code: 'ACCOUNT_CALLBACK_INVALID',
+        });
+      }
+
+      if ('error' in callback) {
+        // A cancelled new connection is not proof that an existing
+        // independently verified local session has been revoked.
+        return publish({ status: 'unavailable', code: 'ACCOUNT_AUTHORIZATION_CANCELLED' });
+      }
+
+      const initialTokens = readTokens();
+      const generation = signOutGeneration;
+      let exchanged: TokenResponse;
+      try {
+        exchanged = await postToken(
+          new URLSearchParams({
+            grant_type: 'authorization_code',
+            code: callback.code,
+            client_id: clientId,
+            redirect_uri: redirectUri,
+            code_verifier: pending.verifier,
+          }),
+        );
+      } catch {
+        // An invalid/expired code or temporary outage must not log out a
+        // previously verified session. The one-use PKCE request is consumed.
+        return publish({
+          status: 'unavailable',
+          code: 'ACCOUNT_CODE_EXCHANGE_FAILED',
+        });
+      }
+
+      // The user may have signed out or another tab may have authenticated a
+      // different identity while the one-use code was being exchanged.
+      if (signOutGeneration !== generation) {
+        return publish({ status: 'signed-out' });
+      }
+      const latest = readTokens();
+      if (
+        (latest?.refreshToken ?? null) !== (initialTokens?.refreshToken ?? null)
+      ) {
+        return publish({ status: 'unavailable', code: 'ACCOUNT_SESSION_CHANGED' });
+      }
+      writeTokens(exchanged);
+      return verify();
+    };
+
+    const promise = run();
+    callbackFlight = promise;
+    const release = () => {
+      if (callbackFlight === promise) callbackFlight = null;
+    };
+    void promise.then(release, release);
+    return promise;
   }
 
   async function accessToken(): Promise<string | null> {
@@ -533,6 +565,7 @@ export function createThiepnAccountSession(
   }
 
   function signOutLocal(): ThiepnIdentity {
+    ++signOutGeneration;
     clearTokens();
     session.removeItem(pendingKey);
     return publish({ status: 'signed-out' });
