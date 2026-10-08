@@ -369,3 +369,118 @@ describe('standard Account session boundary protections',()=>{
       .toBe('replacement-access-token-12345678');
   });
 });
+
+describe('OAuth callback session continuity', () => {
+  const clientId = '123e4567-e89b-42d3-a456-426614174000';
+  const redirectUri = 'https://languages.thiepn.dev/auth/callback/';
+  const storageKey = 'thiepn:callback-continuity:v1';
+
+  const tokenResponse = new Response(JSON.stringify({
+    access_token: 'new-authorization-access-token-123456',
+    refresh_token: 'new-authorization-refresh-token-123456',
+    expires_in: 3600,
+    token_type: 'bearer',
+    scope: 'openid email',
+  }), {status:200,headers:{'Content-Type':'application/json'}});
+
+  function setup(transport: typeof fetch) {
+    const local = new MemoryStorage();
+    const ephemeral = new MemoryStorage();
+    const old = {
+      accessToken:'previous-access-token-123456789',
+      refreshToken:'previous-refresh-token-123456789',
+      expiresAt: Date.now() + 3_600_000,
+      scope:'openid email',
+    };
+    local.setItem(`${storageKey}:tokens`, JSON.stringify(old));
+    const client = createThiepnAccountSession({
+      issuer: 'https://example.supabase.co',
+      publishableKey: 'sb_publishable_abcdefghijklmnopqrstuvwxyz',
+      clientId,redirectUri,storageKey,
+      authPolicy:'guest-first',
+      localStorage:local,
+      sessionStorage:ephemeral,
+      fetch:transport,
+    });
+    return {client,local,old};
+  }
+
+  async function callback(client:ReturnType<typeof createThiepnAccountSession>) {
+    const authorization = new URL(await client.authorizationUrl());
+    const state = authorization.searchParams.get('state');
+    if (!state) throw new Error('Expected OAuth state');
+    return {href:`${redirectUri}?code=one-use-code&state=${state}`,hash:''};
+  }
+
+  it('preserves a previously valid session if the new code exchange is rejected', async () => {
+    const {client,local,old} = setup(async () =>
+      new Response(JSON.stringify({error:'invalid_grant'}),{status:400}),
+    );
+    await expect(client.completeCallback(await callback(client))).resolves.toEqual({
+      status:'unavailable',code:'ACCOUNT_CODE_EXCHANGE_FAILED',
+    });
+    expect(JSON.parse(local.getItem(`${storageKey}:tokens`)??'{}')).toEqual(old);
+  });
+
+  it('does not revive credentials after a deliberate sign-out during the token exchange', async () => {
+    let finish:(response:Response)=>void=()=>{};
+    let started:()=>void=()=>{};
+    const startedPromise=new Promise<void>(resolve=>{started=resolve;});
+    const {client,local} = setup(async () => {
+      started();
+      return await new Promise<Response>(resolve=>{finish=resolve;});
+    });
+    const pending=client.completeCallback(await callback(client));
+    await startedPromise;
+    client.signOutLocal();
+    finish(tokenResponse.clone());
+    await expect(pending).resolves.toEqual({status:'signed-out'});
+    expect(local.getItem(`${storageKey}:tokens`)).toBeNull();
+    expect(client.identity()).toEqual({status:'signed-out'});
+  });
+
+  it('only exchanges a one-use authorization code once when invoked concurrently', async () => {
+    let resolveExchange:(response:Response)=>void=()=>{};
+    let exchanges=0;
+    const {client}=setup(async request => {
+      if (String(request).endsWith('/oauth/token')) {
+        ++exchanges;
+        return await new Promise<Response>(resolve=>{resolveExchange=resolve;});
+      }
+      return new Response(JSON.stringify({id:clientId,email:'member@example.test'}),{status:200});
+    });
+    const location=await callback(client);
+    const one=client.completeCallback(location);
+    const two=client.completeCallback(location);
+    expect(two).toBe(one);
+    expect(exchanges).toBe(1);
+    resolveExchange(tokenResponse.clone());
+    await expect(Promise.all([one,two])).resolves.toEqual([
+      {status:'signed-in',id:clientId,email:'member@example.test'},
+      {status:'signed-in',id:clientId,email:'member@example.test'},
+    ]);
+    expect(exchanges).toBe(1);
+  });
+
+  it('preserves a newer session written by another tab during callback exchange', async () => {
+    let finish:(response:Response)=>void=()=>{};
+    let started:()=>void=()=>{};
+    const startedPromise=new Promise<void>(resolve=>{started=resolve;});
+    const {client,local}=setup(async () => {
+      started();
+      return await new Promise<Response>(resolve=>{finish=resolve;});
+    });
+    const pending=client.completeCallback(await callback(client));
+    await startedPromise;
+    const newer={
+      accessToken:'replacement-access-token-123456789',
+      refreshToken:'replacement-refresh-token-123456789',
+      expiresAt:Date.now()+3_600_000,
+      scope:'openid email',
+    };
+    local.setItem(`${storageKey}:tokens`,JSON.stringify(newer));
+    finish(tokenResponse.clone());
+    await expect(pending).resolves.toEqual({status:'unavailable',code:'ACCOUNT_SESSION_CHANGED'});
+    expect(JSON.parse(local.getItem(`${storageKey}:tokens`)??'{}')).toEqual(newer);
+  });
+});
