@@ -46,7 +46,7 @@ As of 2026-10-07, the one-time production configuration is no longer a release b
 - the Account OAuth 2.1 discovery endpoint is live and advertises Authorization Code, refresh tokens and PKCE S256;
 - canonical first-party Library and Languages clients are registered and pass the live cross-origin SSO probe.
 
-## Remaining manual certification before v1.0.0
+## Remaining human certification before v1.0.0
 
 These still require human or physical-device evidence:
 
@@ -107,3 +107,38 @@ The Account SSO production burn-in is now part of the production acceptance chai
 - no fresh burn-in browser unexpectedly inherits an Account session.
 
 The burn-in does not store Google credentials or production refresh tokens. Human authenticated callback, disconnect/reconnect and device/browser behavior therefore remain separate evidence where applicable.
+
+
+## 2026-10-08 final Account release freeze
+
+Account core development and the drop-in first-party SSO integration contract are
+**feature-complete for the documented v1 scope**. This is not a claim that all
+THIEPN consumer apps have integrated, or that the final release is certified.
+
+The production configuration has three verified canonical first-party OAuth
+bindings (Library, Languages, French) with no orphan, duplicate client ID,
+inactive consent or non-first-party HTTPS URI issues in the reviewed registry.
+Registration does not itself certify the consumer callback or private-data
+permissions.
+
+The committed `docs/release-certification.json` is the **single manual
+acceptance ledger**. Human/physical-device and destructive-test cases are all
+explicitly pending until the operator records real evidence. The release
+procedure and safe disposable-account instructions are in
+[`V1_RELEASE_RUNBOOK.md`](./V1_RELEASE_RUNBOOK.md).
+
+CI and production build invoke `scripts/check-release-certification.mjs`:
+`v1.0.0` cannot pass a final release build with incomplete manual checks,
+missing evidence, or absent review. The production `1.0.0-rc.2` build can
+continue to ship security and verification fixes. The ledger is documentary
+evidence, not a cryptographic proof of human identity: reviewer verification
+is still required.
+
+Additional mock-browser regressions cover protected deep-link return after
+sign-in and light/dark/system preference persistence. The automated 320px
+CSS-viewport checks approximate some 200% zoom layout conditions but **do not
+replace native browser zoom or screen-reader qualification**.
+
+**Release decision:** no automatic v1.0.0 tag; close the final P20 release
+issue only after all required human evidence is reviewed and the final SHA
+passes the complete production deployment and SSO burn-in chain.
