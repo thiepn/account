@@ -2,7 +2,7 @@
 
 User-facing account control center for the THIEPN ecosystem.
 
-**Release track:** `1.0.0-rc.2`
+**Release track:** `1.0.0-rc.2` (core platform feature-frozen; final human certification outstanding)
 
 **Production target:** `https://account.thiepn.dev`
 
@@ -69,6 +69,8 @@ pnpm typecheck
 pnpm test
 pnpm test:e2e
 pnpm build
+node --test scripts/check-release-certification.test.mjs
+node scripts/check-release-certification.mjs
 ```
 
 GitHub Actions additionally verifies:
@@ -85,7 +87,7 @@ GitHub Actions additionally verifies:
 
 `.github/workflows/deploy.yml` deploys the exact commit from a successful `Account CI` run to GitHub Pages. The production build uses the browser-safe Supabase publishable key and creates a `404.html` SPA fallback for deep links such as `/auth/callback`.
 
-GitHub repository Pages settings must use **GitHub Actions** as the publishing source. The custom domain must be configured as `account.thiepn.dev` in repository Pages settings and DNS before final v1.0 certification.
+GitHub Pages, TLS, custom DNS and canonical production OAuth are operational. Final `v1.0.0` certification is a separate release decision, gated by signed human and disposable-account testing in the runbook. Changes to the version alone cannot satisfy the CI or deployment gate.
 
 ## Status
 
@@ -93,6 +95,8 @@ See:
 
 - `docs/IMPLEMENTATION_STATUS.md`
 - `docs/PRODUCTION_READINESS.md`
+- `docs/V1_RELEASE_RUNBOOK.md` (final production/device/recovery checks)
+- `docs/release-certification.json` (explicit pending human sign-off; never infer completion from CI)
 - `docs/FRONTEND_QA_MATRIX.md`
 - `docs/ACCOUNT_API_CONTRACT.md`
 - `docs/SECURITY_INVARIANTS.md`
