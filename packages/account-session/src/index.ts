@@ -419,6 +419,12 @@ export function createThiepnAccountSession(
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (response.status === 401 || response.status === 403) {
+        // Another tab may have rotated/replaced the stored app session while
+        // our identity request was in flight. Never revoke the newer login.
+        const latest = readTokens();
+        if (latest && latest.accessToken !== tokens.accessToken) {
+          return publish({ status: 'unavailable', code: 'ACCOUNT_SESSION_CHANGED' });
+        }
         clearTokens();
         return publish({ status: 'signed-out' });
       }
@@ -468,6 +474,11 @@ export function createThiepnAccountSession(
   async function completeCallback(
     location: Pick<Location, 'href' | 'hash'>,
   ): Promise<ThiepnIdentity> {
+    const actual = new URL(location.href);
+    const expected = new URL(redirectUri);
+    if (actual.origin !== expected.origin || actual.pathname !== expected.pathname) {
+      return publish({ status: 'unavailable', code: 'ACCOUNT_CALLBACK_INVALID' });
+    }
     const callback = readThiepnOAuthCallback(location);
     const pending = parseJson<Partial<PendingAuthorization>>(
       session.getItem(pendingKey),
@@ -549,3 +560,6 @@ export function createThiepnAccountSession(
 export type ThiepnAccountSession = ReturnType<
   typeof createThiepnAccountSession
 >;
+
+export { createThiepnBrowserSso, probeThiepnAccount, readThiepnAccountProbeMessage } from './browser-sso';
+export type { ThiepnBrowserSso, ThiepnBrowserSsoOptions, ThiepnBrowserSsoStatus, ThiepnAccountProbe } from './browser-sso';

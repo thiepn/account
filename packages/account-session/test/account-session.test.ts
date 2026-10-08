@@ -312,3 +312,60 @@ describe('Account refresh reliability',()=>{
     await expect(verifying).resolves.toMatchObject({status:'signed-out'});
   });
 });
+
+describe('standard Account session boundary protections',()=>{
+  it('cannot redeem a callback on a foreign origin even if its state is syntactically valid',async()=>{
+    const session=createThiepnAccountSession({
+      issuer:'https://example.supabase.co',
+      publishableKey:'sb_publishable_abcdefghijklmnopqrstuvwxyz',
+      clientId:'123e4567-e89b-42d3-a456-426614174000',
+      redirectUri:'https://thiepn.dev/library/auth/callback/',
+      storageKey:'thiepn:callback-exact:v1',
+      authPolicy:'guest-first',
+      localStorage:new MemoryStorage(),
+      sessionStorage:new MemoryStorage(),
+    });
+    const state='a'.repeat(43);
+    await expect(session.completeCallback({
+      href:`https://attacker.example/library/auth/callback/?code=one&state=${state}`,hash:'',
+    } as Location)).resolves.toEqual({status:'unavailable',code:'ACCOUNT_CALLBACK_INVALID'});
+  });
+
+  it('does not erase a newly rotated session after an old token gets a 401',async()=>{
+    const key='thiepn:stale-401:v1';
+    const local=new MemoryStorage();
+    local.setItem(`${key}:tokens`,JSON.stringify({
+      accessToken:'initial-access-token-12345678',
+      refreshToken:'initial-refresh-token-123456',
+      expiresAt:2_000_000,
+      scope:'openid',
+    }));
+    let release:(value:Response)=>void=()=>{};
+    let started:()=>void=()=>{};
+    const waiting=new Promise<void>(resolve=>{started=resolve;});
+    const session=createThiepnAccountSession({
+      issuer:'https://example.supabase.co',
+      publishableKey:'sb_publishable_abcdefghijklmnopqrstuvwxyz',
+      clientId:'123e4567-e89b-42d3-a456-426614174000',
+      redirectUri:'https://thiepn.dev/library/auth/callback/',
+      storageKey:key,authPolicy:'guest-first',
+      localStorage:local,sessionStorage:new MemoryStorage(),now:()=>1_000_000,
+      fetch:async()=>{
+        started();
+        return await new Promise<Response>(resolve=>{release=resolve;});
+      },
+    });
+    const verifying=session.verify();
+    await waiting;
+    local.setItem(`${key}:tokens`,JSON.stringify({
+      accessToken:'replacement-access-token-12345678',
+      refreshToken:'replacement-refresh-token-123456',
+      expiresAt:3_000_000,
+      scope:'openid',
+    }));
+    release(new Response(JSON.stringify({error:'unauthorized'}),{status:401}));
+    await expect(verifying).resolves.toEqual({status:'unavailable',code:'ACCOUNT_SESSION_CHANGED'});
+    expect(JSON.parse(local.getItem(`${key}:tokens`)??'{}').accessToken)
+      .toBe('replacement-access-token-12345678');
+  });
+});
