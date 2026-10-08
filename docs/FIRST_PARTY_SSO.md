@@ -13,7 +13,7 @@ When a registered first-party authorization request reaches `/oauth/consent`:
 3. Account resolves the exact client UUID + callback + standard scopes against `account_first_party_oauth_clients`; the client website URI is presentation metadata only.
 4. A never-before-seen app connection is created with only required/basic grants.
 5. Official guest-first apps first use the `/sso/probe` boundary, which exposes only signed-in/eligibility bits to the registered app origin. A deliberately disconnected app is ineligible for silent authorization.
-6. If the user explicitly starts a new OAuth connection after disconnecting, Account reconnects that app and restores only its required/basic grants.
+6. A previously disconnected app is **never** reconnected merely because an OAuth request arrives. Account presents an explicit **Reconnect app?** decision (including already-consented OAuth redirect fast paths). Only an approval within the native Account page restores required/basic grants. Refusing does not leak a one-time authorization code; sensitive grants remain denied.
 7. Account approves the authorization automatically when `automatic_identity_consent=true`.
 8. Supabase returns a one-time authorization code to the exact registered app callback.
 9. The app exchanges the code with its PKCE verifier and retains its own app-local refresh token.
