@@ -17,10 +17,14 @@ import { Boxes, ChevronRight, CloudCog, Laptop2, ShieldCheck } from "lucide-reac
 
 function PageHeader({title,description}:{title:string;description:string}){return <header className="page-header"><div className="page-color-strip" aria-hidden="true"><span/><span/><span/><span/></div><h1>{title}</h1><p>{description}</p></header>;}
 function Loading(){return <div className="loading-card" aria-label="Loading"><div className="loading-shimmer"/></div>;}
+function LoadFailure({message,retry}:{message:string;retry:()=>void}){
+  return <div className="space-y-3 py-3" role="alert"><Notice tone="error">{message} Your saved data has not been changed.</Notice><Button variant="secondary" onClick={retry}>Try again</Button></div>;
+}
 
 export function OverviewPage(){
   const q=useOverview();
   if(q.isLoading)return <Loading/>;
+  if(q.isError&&!q.data)return <LoadFailure message="Could not load your Account overview." retry={()=>void q.refetch()}/>;
   if(!q.data)return <div>Could not load the account overview.</div>;
   const {identity,security,devices,apps,data}=q.data;
   const sessionCount=devices.reduce((sum,device)=>sum+device.sessions.length,0);
@@ -101,6 +105,7 @@ export function ProfilePage(){
   },[isDirty]);
 
   if(profile.isLoading||overview.isLoading)return <Loading/>;
+  if((profile.isError&&!profile.data)||(overview.isError&&!overview.data))return <LoadFailure message="Could not load your profile." retry={()=>{void profile.refetch();void overview.refetch();}}/>;
   if(!profile.data||!overview.data)return <div>Could not load the profile.</div>;
 
   async function onSubmit(values:ProfileForm){
@@ -187,6 +192,7 @@ export function SecurityPage(){
   const [confirmRevokeOthers,setConfirmRevokeOthers]=useState(false);
   const [revokeError,setRevokeError]=useState(false);
   if(q.isLoading||capabilities.isLoading||sessions.isLoading)return <Loading/>;
+  if((q.isError&&!q.data)||(sessions.isError&&!sessions.data)||(capabilities.isError&&!capabilities.data))return <LoadFailure message="Could not verify your security or session status." retry={()=>{void q.refetch();void sessions.refetch();void capabilities.refetch();}}/>;
   if(!q.data)return <div>Could not load security status.</div>;
 
   const environments=sessions.data??[];
@@ -269,6 +275,7 @@ export function SecurityEventPage(){
 export function AppsPage(){
   const q=useApps();
   if(q.isLoading)return <Loading/>;
+  if(q.isError&&!q.data)return <LoadFailure message="Could not retrieve your connected apps." retry={()=>void q.refetch()}/>;
   const apps=q.data??[];
   return <><PageHeader title="Apps" description="Applications currently connected to your THIEPN Account."/>
     {apps.length?<div className="app-grid">{apps.map((app,index)=><Link key={app.id} to={`/apps/${app.id}`} className="block h-full no-underline"><Panel title="" className={["app-tile",["ui-panel-accent-purple","ui-panel-accent-blue","ui-panel-accent-mint","ui-panel-accent-peach","ui-panel-accent-pink"][index%5]].join(" ")}><div className="app-card-row"><span className="app-card-icon" data-tone={index%5}>{app.name.trim().charAt(0).toUpperCase()}</span><span className="app-card-copy"><strong>{app.name}</strong><small>{app.permissionCount} granted permission{app.permissionCount===1?"":"s"} · Manage connection and Account access</small></span><StatusBadge tone={app.status==="limited"?"warning":app.status==="error"?"danger":"success"}>{app.status}</StatusBadge><ChevronRight size={16} className="text-[var(--muted)]"/></div></Panel></Link>)}</div>:<Panel title="Connected apps" className="ui-panel-accent-peach"><EmptyState title="No connected apps" description="Apps will appear here after they connect to your THIEPN Account."/></Panel>}
@@ -284,6 +291,7 @@ export function AppDetailPage(){
   const runSensitive=useSensitiveAction();
   const [disconnectOpen,setDisconnectOpen]=useState(false);
   if(q.isLoading)return <Loading/>;
+  if(q.isError&&!q.data)return <LoadFailure message="Could not verify this app connection." retry={()=>void q.refetch()}/>;
   if(!q.data)return <><PageHeader title="App not connected" description="This application does not have an Account connection."/><Link className="inline-link" to="/apps">Back to connected apps</Link></>;
   const {app,connection}=q.data;
   const granted=new Map(connection.grantedPermissions.map((permission)=>[permission.permissionId,permission.status]));
@@ -307,6 +315,7 @@ function syncTone(status:string):"neutral"|"success"|"warning"|"danger"{return s
 export function DataPage(){
   const summary=useDataSummary();const list=useAppDataList();
   if(summary.isLoading||list.isLoading)return <Loading/>;
+  if((summary.isError&&!summary.data)||(list.isError&&!list.data))return <LoadFailure message="Could not retrieve the cloud-data inventory." retry={()=>{void summary.refetch();void list.refetch();}}/>;
   if(!summary.data)return <div>Could not load cloud data status.</div>;
   const active=(list.data??[]).filter((item)=>item.namespaceStatus==="active");
   const retained=(list.data??[]).filter((item)=>item.namespaceStatus!=="active");
@@ -325,6 +334,7 @@ export function DataPage(){
 export function AppDataPage(){
   const {appId}=useParams();const q=useAppData(appId);const retry=useRetrySync();const configure=useUpdateSyncConfiguration();const [disableOpen,setDisableOpen]=useState(false);
   if(q.isLoading)return <Loading/>;
+  if(q.isError&&!q.data)return <LoadFailure message="Could not load the app cloud-data status." retry={()=>void q.refetch()}/>;
   if(!q.data)return <><PageHeader title="Cloud data unavailable" description="No cloud-data namespace exists for this app."/><Link className="inline-link" to="/data">Back to Data & Backup</Link></>;
   const item=q.data;
   return <><PageHeader title={item.appName} description="Cloud data and synchronization state."/>
@@ -343,6 +353,7 @@ export function AppDataPage(){
 export function BackupsPage(){
   const summary=useBackupSummary();const history=useBackups();const create=useCreateBackup();
   if(summary.isLoading||history.isLoading)return <Loading/>;
+  if((summary.isError&&!summary.data)||(history.isError&&!history.data))return <LoadFailure message="Could not retrieve backup information." retry={()=>{void summary.refetch();void history.refetch();}}/>;
   return <><PageHeader title="Backups" description="Immutable recovery snapshots of selected app cloud data."/>
     {summary.data?.attention?<Notice tone="warning">{summary.data.attention}</Notice>:null}
     <div className="mt-4 space-y-4">
@@ -355,6 +366,7 @@ export function BackupsPage(){
 export function BackupDetailPage(){
   const {backupId}=useParams();const q=useBackup(backupId);
   if(q.isLoading)return <Loading/>;
+  if(q.isError&&!q.data)return <LoadFailure message="Could not retrieve this backup." retry={()=>void q.refetch()}/>;
   if(!q.data)return <><PageHeader title="Backup unavailable" description="This backup could not be found."/><Link className="inline-link" to="/data/backups">Back to backups</Link></>;
   const backup=q.data;
   return <><PageHeader title={backup.type==="pre-restore"?"Recovery snapshot":"Backup"} description={new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(backup.createdAt))}/>
@@ -372,6 +384,7 @@ export function RestorePage(){
   useEffect(()=>{if(backup.data&&!selected.length)setSelected(backup.data.apps.map((item)=>item.appId));},[backup.data,selected.length]);
   if(!backupId)return <><PageHeader title="Restore" description="Choose a backup from Backup history before starting a restore."/><Link className="inline-link" to="/data/backups">Choose a backup</Link></>;
   if(backup.isLoading)return <Loading/>;
+  if(backup.isError&&!backup.data)return <LoadFailure message="Could not retrieve the selected recovery snapshot." retry={()=>void backup.refetch()}/>;
   if(!backup.data)return <><PageHeader title="Restore" description="The selected backup is unavailable."/><Link className="inline-link" to="/data/backups">Choose another backup</Link></>;
   const plan=planMutation.data;
   return <><PageHeader title="Restore cloud data" description="Restore selected app namespaces from a verified recovery snapshot."/>
@@ -386,6 +399,7 @@ export function RestorePage(){
 export function RestoreOperationPage(){
   const {operationId}=useParams();const q=useRestoreOperation(operationId);
   if(q.isLoading)return <Loading/>;
+  if(q.isError&&!q.data)return <LoadFailure message="Could not retrieve restore progress." retry={()=>void q.refetch()}/>;
   if(!q.data)return <><PageHeader title="Restore unavailable" description="This restore operation could not be found."/><Link className="inline-link" to="/data/backups">Back to backups</Link></>;
   const operation=q.data;const terminal=["completed","partially-completed","failed","cancelled"].includes(operation.status);
   return <><PageHeader title={terminal?"Restore result":"Restore in progress"} description="The restore runs in the Account service and survives page navigation."/>
@@ -396,6 +410,7 @@ export function RestoreOperationPage(){
 export function PrivacyPage(){
   const q=usePrivacySummary();
   if(q.isLoading)return <Loading/>;
+  if(q.isError&&!q.data)return <LoadFailure message="Could not load your privacy status." retry={()=>void q.refetch()}/>;
   if(!q.data)return <div>Could not load privacy status.</div>;
   return <><PageHeader title="Privacy" description="Export, cloud-data deletion and Account lifecycle controls."/>
     {q.data.accountStatus==="deletion-pending"?<Notice tone="warning">Account deletion is scheduled. Review or cancel it from the deletion status page.</Notice>:null}
