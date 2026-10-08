@@ -1,0 +1,88 @@
+name: Register French first-party OAuth client
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Register exactly one French public OAuth client
+        shell: bash
+        env:
+          ACCOUNT_ORIGIN: https://hycegznamzjhwinegaai.supabase.co
+          EXPECTED_REGISTRATION_ENDPOINT: https://hycegznamzjhwinegaai.supabase.co/auth/v1/oauth/clients/register
+          CLIENT_NAME: THIEPN French
+          CLIENT_URI: https://french.thiepn.dev/
+          REDIRECT_URI: https://french.thiepn.dev/
+        run: |
+          set -euo pipefail
+
+          discovery="$ACCOUNT_ORIGIN/.well-known/oauth-authorization-server/auth/v1"
+          registration_endpoint="$(
+            curl --fail --silent --show-error "$discovery" |
+            jq -er '.registration_endpoint'
+          )"
+
+          if [[ "$registration_endpoint" != "$EXPECTED_REGISTRATION_ENDPOINT" ]]; then
+            echo "::error::Unexpected OAuth registration endpoint: $registration_endpoint"
+            exit 1
+          fi
+
+          payload="$(
+            jq -n               --arg client_name "$CLIENT_NAME"               --arg client_uri "$CLIENT_URI"               --arg redirect_uri "$REDIRECT_URI"               '{
+                client_name: $client_name,
+                client_uri: $client_uri,
+                redirect_uris: [$redirect_uri],
+                grant_types: ["authorization_code", "refresh_token"],
+                response_types: ["code"],
+                token_endpoint_auth_method: "none"
+              }'
+          )"
+
+          response="$(
+            curl --fail-with-body --silent --show-error               -X POST "$registration_endpoint"               -H 'Content-Type: application/json'               --data "$payload"
+          )"
+
+          client_id="$(jq -er '.client_id' <<<"$response")"
+          returned_name="$(jq -er '.client_name // .name' <<<"$response")"
+          returned_auth_method="$(jq -er '.token_endpoint_auth_method' <<<"$response")"
+          returned_redirect="$(jq -er '.redirect_uris | if type=="array" then .[0] else . end' <<<"$response")"
+
+          if ! [[ "$client_id" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::error::Registration returned an invalid client UUID."
+            exit 1
+          fi
+          if [[ "$returned_name" != "$CLIENT_NAME" ]]; then
+            echo "::error::Client name mismatch."
+            exit 1
+          fi
+          if [[ "$returned_auth_method" != "none" ]]; then
+            echo "::error::French must be a public OAuth client with token_endpoint_auth_method=none."
+            exit 1
+          fi
+          if [[ "$returned_redirect" != "$REDIRECT_URI" ]]; then
+            echo "::error::Exact French callback mismatch."
+            exit 1
+          fi
+          if jq -e 'has("client_secret") and (.client_secret != null) and (.client_secret != "")' <<<"$response" >/dev/null; then
+            echo "::error::Public French OAuth client unexpectedly returned a client secret."
+            exit 1
+          fi
+
+          echo "::notice title=French OAuth client ID::$client_id"
+          {
+            echo "## French first-party OAuth registration"
+            echo
+            echo "- Client ID: `$client_id`"
+            echo "- Client name: `$returned_name`"
+            echo "- Client URI: `$CLIENT_URI`"
+            echo "- Callback: `$returned_redirect`"
+            echo "- Token auth: `$returned_auth_method`"
+            echo
+            echo "Next: pin this UUID in Account's `account_first_party_oauth_clients` registry, update French's pending client constant, verify the SSO probe, then delete this branch."
+          } >> "$GITHUB_STEP_SUMMARY"
