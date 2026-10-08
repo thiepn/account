@@ -290,6 +290,7 @@ export function AppDetailPage(){
   const navigate=useNavigate();
   const runSensitive=useSensitiveAction();
   const [disconnectOpen,setDisconnectOpen]=useState(false);
+  const [actionError,setActionError]=useState<string|null>(null);
   if(q.isLoading)return <Loading/>;
   if(q.isError&&!q.data)return <LoadFailure message="Could not verify this app connection." retry={()=>void q.refetch()}/>;
   if(!q.data)return <><PageHeader title="App not connected" description="This application does not have an Account connection."/><Link className="inline-link" to="/apps">Back to connected apps</Link></>;
@@ -297,17 +298,35 @@ export function AppDetailPage(){
   const granted=new Map(connection.grantedPermissions.map((permission)=>[permission.permissionId,permission.status]));
   const mutationPending=grant.isPending||revoke.isPending;
   return <><PageHeader title={app.name} description={app.description}/>
+    {actionError?<Notice tone="error">{actionError}</Notice>:null}
     {connection.status==="disconnected"?<Notice>This app is disconnected. Existing cloud data, if any, remains separate from the connection.</Notice>:null}
     {connection.status==="limited"?<Notice tone="warning">This app needs an Account access review.</Notice>:null}
     <div className="mt-4 space-y-4">
       <Panel title="Connection" className="ui-panel-accent-peach integration-accent-card"><dl className="detail-grid"><div><dt>Status</dt><dd><StatusBadge tone={connection.status==="connected"?"success":connection.status==="limited"?"warning":"danger"}>{connection.status}</StatusBadge></dd></div>{connection.connectedAt?<div><dt>Connected</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(connection.connectedAt))}</dd></div>:null}{connection.lastUsedAt?<div><dt>Last used</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(connection.lastUsedAt))}</dd></div>:null}<div><dt>App ID</dt><dd className="font-mono text-sm">{app.id}</dd></div></dl></Panel>
       <Panel title="Account access" className="ui-panel-accent-purple" description="Required access is part of the connection. Optional access can be changed independently.">
-        <div className="permission-list">{app.availablePermissions.map((permission)=>{const status=granted.get(permission.id)??"denied";const change=async(granted:boolean)=>{const action=()=>granted?grant.mutateAsync({appId:app.id,permissionId:permission.id}):revoke.mutateAsync({appId:app.id,permissionId:permission.id});if(permission.sensitivity==="sensitive")await runSensitive(action);else await action();};return <div className="permission-row" key={permission.id}><div><strong>{permission.name}</strong><small>{permission.description}{permission.sensitivity==="sensitive"?" · Identity confirmation required":""}</small></div><div className="permission-actions">{permission.required?<StatusBadge>Required</StatusBadge>:status==="granted"?<Button variant="ghost" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void change(false)}>Revoke</Button>:<Button variant="secondary" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void change(true)}>Allow</Button>}<StatusBadge tone={status==="granted"?"success":"neutral"}>{status}</StatusBadge></div></div>;})}</div>
+        <div className="permission-list">{app.availablePermissions.map((permission)=>{const status=granted.get(permission.id)??"denied";const change=async(granted:boolean)=>{
+          setActionError(null);
+          try{
+            const action=()=>granted?grant.mutateAsync({appId:app.id,permissionId:permission.id}):revoke.mutateAsync({appId:app.id,permissionId:permission.id});
+            if(permission.sensitivity==="sensitive")await runSensitive(action);
+            else await action();
+          }catch{setActionError("Permission update failed. The previous Account grant was not intentionally changed. Check the current grant before retrying.");}
+        };return <div className="permission-row" key={permission.id}><div><strong>{permission.name}</strong><small>{permission.description}{permission.sensitivity==="sensitive"?" · Identity confirmation required":""}</small></div><div className="permission-actions">{permission.required?<StatusBadge>Required</StatusBadge>:status==="granted"?<Button variant="ghost" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void change(false)}>Revoke</Button>:<Button variant="secondary" disabled={mutationPending||connection.status==="disconnected"} onClick={()=>void change(true)}>Allow</Button>}<StatusBadge tone={status==="granted"?"success":"neutral"}>{status}</StatusBadge></div></div>;})}</div>
       </Panel>
       <Panel title="Data & sync" className="ui-panel-accent-blue data-accent-card" description="Detailed live cloud-data state is owned by the P8 Data service."><Link className="inline-link" to={`/data?app=${encodeURIComponent(app.id)}`}>View data status</Link></Panel>
       {connection.status!=="disconnected"?<Panel title="Disconnect" className="ui-panel-accent-pink danger-accent-card"><p className="text-sm text-[var(--muted)]">Disconnecting removes this app's Account access. It does not delete existing cloud data or backups.</p><Button variant="danger" onClick={()=>setDisconnectOpen(true)}>Disconnect {app.name}</Button></Panel>:null}
     </div>
-    <ConfirmDialog open={disconnectOpen} title={`Disconnect ${app.name}?`} description="The app will lose THIEPN Account access. Existing cloud data is retained and is not deleted by this action." confirmLabel="Disconnect" danger pending={disconnect.isPending} onCancel={()=>setDisconnectOpen(false)} onConfirm={async()=>{await disconnect.mutateAsync({appId:app.id});setDisconnectOpen(false);navigate("/apps",{replace:true});}}/>
+    <ConfirmDialog open={disconnectOpen} title={`Disconnect ${app.name}?`} description="The app will lose THIEPN Account access. Existing cloud data is retained and is not deleted by this action." confirmLabel="Disconnect" danger pending={disconnect.isPending} onCancel={()=>setDisconnectOpen(false)} onConfirm={async()=>{
+      setActionError(null);
+      try{
+        await disconnect.mutateAsync({appId:app.id});
+        setDisconnectOpen(false);
+        navigate("/apps",{replace:true});
+      }catch{
+        setDisconnectOpen(false);
+        setActionError("Disconnect could not be confirmed. Check the connection before retrying.");
+      }
+    }}/>
   </>;
 }
 function syncTone(status:string):"neutral"|"success"|"warning"|"danger"{return status==="up-to-date"?"success":status==="conflict"||status==="error"?"danger":status==="delayed"||status==="pending"||status==="syncing"?"warning":"neutral";}
