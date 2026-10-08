@@ -80,3 +80,14 @@ test("legacy Devices route redirects into Security sessions",async({page})=>{
   await expect(page).toHaveURL(/\/security#sessions$/);
   await expect(page.getByText("Where you're signed in")).toBeVisible();
 });
+
+test("signing out other Account sessions requires explicit confirmation",async({page})=>{
+  await page.goto("/security?scenario=many-devices");
+  await page.getByRole("button",{name:"Sign out all other sessions"}).click();
+  const dialog=page.getByRole("alertdialog",{name:"Sign out all other sessions?"});
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("You will stay signed in here.",{exact:false})).toBeVisible();
+  await dialog.getByRole("button",{name:"Cancel"}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText(/5 sessions/)).toHaveCount(2);
+});

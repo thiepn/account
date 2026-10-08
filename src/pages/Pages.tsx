@@ -184,6 +184,8 @@ export function SecurityPage(){
   const capabilities=useCapabilities();
   const sessions=useDevices();
   const revokeOthers=useRevokeOtherSessions();
+  const [confirmRevokeOthers,setConfirmRevokeOthers]=useState(false);
+  const [revokeError,setRevokeError]=useState(false);
   if(q.isLoading||capabilities.isLoading||sessions.isLoading)return <Loading/>;
   if(!q.data)return <div>Could not load security status.</div>;
 
@@ -215,9 +217,28 @@ export function SecurityPage(){
       <div id="sessions" className="space-y-4 scroll-mt-20">
         {current?<div className="security-current-session rounded-xl border border-[var(--border)] bg-[var(--surface-hover)] p-4"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-semibold">{current.label}</p><p className="mt-1 text-xs text-[var(--muted)]">Current session · active now</p></div><StatusBadge tone="success">Current</StatusBadge></div></div>:null}
         {grouped.length?<div className="device-list">{grouped.map((group)=><div className="device-row" key={`${group.label}-${group.platform}`}><div><strong>{group.label}</strong><small>{group.sessionCount} session{group.sessionCount===1?"":"s"} · Last active {new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(group.lastActivityAt))}</small></div><StatusBadge>Active</StatusBadge></div>)}</div>:<EmptyState title="No other sessions" description="Only your current Account session is active."/>}
-        {otherSessionCount>0&&canRevokeOthers?<div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4"><p className="m-0 text-xs text-[var(--muted)]">{otherSessionCount} other active session{otherSessionCount===1?"":"s"} across {grouped.length} browser environment{grouped.length===1?"":"s"}.</p><Button variant="secondary" disabled={revokeOthers.isPending} onClick={()=>void revokeOthers.mutateAsync()}>{revokeOthers.isPending?"Signing out…":"Sign out all other sessions"}</Button></div>:null}
+        {otherSessionCount>0&&canRevokeOthers?<div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4"><p className="m-0 text-xs text-[var(--muted)]">{otherSessionCount} other active session{otherSessionCount===1?"":"s"} across {grouped.length} browser environment{grouped.length===1?"":"s"}.</p><Button variant="secondary" disabled={revokeOthers.isPending} onClick={()=>{setRevokeError(false);setConfirmRevokeOthers(true);}}>Sign out all other sessions</Button></div>:null}
+        {revokeError?<Notice tone="error">Other sessions could not be signed out. Your current session was not intentionally changed; refresh this page to verify session status.</Notice>:null}
       </div>
     </Panel>
+    <ConfirmDialog
+      open={confirmRevokeOthers}
+      title="Sign out all other sessions?"
+      description="This signs your Account out of other browser sessions. You will stay signed in here. Other apps may have separate sessions."
+      confirmLabel="Sign out other sessions"
+      pending={revokeOthers.isPending}
+      onCancel={()=>setConfirmRevokeOthers(false)}
+      onConfirm={async()=>{
+        try{
+          await revokeOthers.mutateAsync();
+          setConfirmRevokeOthers(false);
+          setRevokeError(false);
+        }catch{
+          setRevokeError(true);
+          setConfirmRevokeOthers(false);
+        }
+      }}
+    />
     <Panel title="Recent security activity" description="Important sign-ins and Account security changes." className="ui-panel-accent-peach">
       {capabilities.data?.securityActivityRead
         ? <><div className="activity-list">{q.data.recentActivity.map((event)=><Link className="activity-row" key={event.id} to={`/security/activity/${event.id}`}><span><strong>{event.title}</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(event.occurredAt))}</small></span><StatusBadge tone={event.severity==="warning"?"warning":event.severity==="critical"?"danger":"neutral"}>{event.category}</StatusBadge></Link>)}</div><Link className="inline-link" to="/security/activity">View all activity</Link></>
@@ -388,15 +409,35 @@ export function PrivacyPage(){
 
 export function ExportPage(){
   const exports=useExports();const request=useRequestExport();const service=useAccountService();
+  const [downloadError,setDownloadError]=useState(false);
+  const [requestError,setRequestError]=useState(false);
+  async function requestAccountExport(){
+    setRequestError(false);
+    try{await request.mutateAsync(undefined);}
+    catch{setRequestError(true);}
+  }
   if(exports.isLoading)return <Loading/>;
   async function download(id:string){
-    const content=await service.privacy.getExportContent(id);
-    const url=URL.createObjectURL(new Blob([content],{type:"application/json"}));
-    const anchor=document.createElement("a");anchor.href=url;anchor.download=`thiepn-account-${id}.json`;anchor.click();URL.revokeObjectURL(url);
+    setDownloadError(false);
+    try{
+      const content=await service.privacy.getExportContent(id);
+      const url=URL.createObjectURL(new Blob([content],{type:"application/json"}));
+      const anchor=document.createElement("a");
+      anchor.href=url;
+      anchor.download=`thiepn-account-${id}.json`;
+      document.body.appendChild(anchor);
+      try{anchor.click();}finally{
+        anchor.remove();
+        // Browsers can start processing the download after the click returns.
+        window.setTimeout(()=>URL.revokeObjectURL(url),60_000);
+      }
+    }catch{setDownloadError(true);}
   }
   return <><PageHeader title="Data export" description="Create a portable copy of your THIEPN Account and supported app metadata."/>
     <div className="space-y-4">
-      <Panel title="Request export" className="ui-panel-accent-blue data-accent-card" description="Exports are temporary portable artifacts, not backups."><Button disabled={request.isPending||exports.data?.some((item)=>["queued","collecting","packaging"].includes(item.status))} onClick={()=>void request.mutateAsync(undefined)}>{request.isPending?"Requesting…":"Request Account export"}</Button></Panel>
+      <Panel title="Request export" className="ui-panel-accent-blue data-accent-card" description="Exports are temporary portable artifacts, not backups."><Button disabled={request.isPending||exports.data?.some((item)=>["queued","collecting","packaging"].includes(item.status))} onClick={()=>void requestAccountExport()}>{request.isPending?"Requesting…":"Request Account export"}</Button></Panel>
+      {requestError?<Notice tone="error">The export request failed. Try again after checking the Account service.</Notice>:null}
+      {downloadError?<Notice tone="error">The export could not be downloaded. Check your connection and try again; no Account data was deleted.</Notice>:null}
       <Panel title="Export history" className="ui-panel-accent-purple">{exports.data?.length?<div className="data-list">{exports.data.map((item)=><div className="data-row" key={item.id}><span><strong>Account export</strong><small>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.requestedAt))}{item.expiresAt?` · expires ${new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(item.expiresAt))}`:""}</small></span>{item.status==="ready"?<Button variant="secondary" onClick={()=>void download(item.id)}>Download</Button>:<StatusBadge tone={item.status==="failed"||item.status==="expired"?"danger":"warning"}>{item.status}</StatusBadge>}</div>)}</div>:<EmptyState title="No exports" description="Requested portable exports will appear here."/ >}</Panel>
     </div>
   </>;
@@ -405,13 +446,15 @@ export function ExportPage(){
 export function AppPrivacyPage(){
   const {appId}=useParams();const data=useAppData(appId);const planMutation=usePlanAppDataDeletion();const start=useStartAppDataDeletion();const navigate=useNavigate();const runSensitive=useSensitiveAction();
   const [confirmOpen,setConfirmOpen]=useState(false);
+  const [planError,setPlanError]=useState(false);
   if(data.isLoading)return <Loading/>;
   if(!data.data)return <><PageHeader title="No cloud data" description="This app currently has no stored cloud-data namespace."/><Link className="inline-link" to="/privacy">Back to Privacy</Link></>;
   const item=data.data;const plan=planMutation.data;
   return <><PageHeader title={`${item.appName} data`} description="Manage this app's cloud-data lifecycle separately from its Account connection."/>
     <div className="space-y-4">
+      {planError?<Notice tone="error">The data-deletion plan could not be prepared. No data was deleted.</Notice>:null}
       <Panel title="Stored cloud data"><dl className="detail-grid"><div><dt>Storage</dt><dd>{new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:2}).format(item.storageBytes/1_000_000)}</dd></div><div><dt>Connection</dt><dd>Deleting cloud data does not disconnect the app.</dd></div></dl></Panel>
-      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>void planMutation.mutateAsync(item.appId)}>{planMutation.isPending?"Preparing deletion…":"Plan cloud-data deletion"}</Button>:<Panel title="Deletion review">{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<p className="text-sm text-[var(--muted)]">{plan.backupImpact}</p><Button variant="danger" disabled={Boolean(plan.blockers.length)} onClick={()=>setConfirmOpen(true)}>Delete {plan.appName} cloud data</Button></Panel>}
+      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>{setPlanError(false);void planMutation.mutateAsync(item.appId).catch(()=>setPlanError(true));}}>{planMutation.isPending?"Preparing deletion…":"Plan cloud-data deletion"}</Button>:<Panel title="Deletion review">{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<p className="text-sm text-[var(--muted)]">{plan.backupImpact}</p><Button variant="danger" disabled={Boolean(plan.blockers.length)} onClick={()=>setConfirmOpen(true)}>Delete {plan.appName} cloud data</Button></Panel>}
     </div>
     <ConfirmDialog open={confirmOpen} title={`Delete ${plan?.appName??item.appName} cloud data?`} description="Live cloud data will be removed. Local data on devices is not erased, the app remains connected, and backup handling follows the stated retention policy." confirmLabel="Delete cloud data" danger pending={start.isPending} onCancel={()=>setConfirmOpen(false)} onConfirm={async()=>{if(!plan)return;const result=await runSensitive(()=>start.mutateAsync(plan.id));if(!result)return;setConfirmOpen(false);navigate("/privacy",{replace:true});}}/>
   </>;
@@ -419,32 +462,48 @@ export function AppPrivacyPage(){
 
 export function AccountDeletionPage(){
   const planMutation=usePlanAccountDeletion();const request=useRequestAccountDeletion();const navigate=useNavigate();const runSensitive=useSensitiveAction();const [confirmation,setConfirmation]=useState("");
+  const [planError,setPlanError]=useState(false);
   const plan=planMutation.data;
   return <><PageHeader title="Delete THIEPN Account" description="Schedule deletion of your Account and managed cloud data."/>
     <div className="space-y-4">
+      {planError?<Notice tone="error">The Account deletion review could not be loaded. No deletion was scheduled.</Notice>:null}
       <Notice tone="warning">Account deletion uses a seven-day grace period. The legacy immediate-delete RPCs are disabled for signed-in clients.</Notice>
-      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>void planMutation.mutateAsync()}>{planMutation.isPending?"Preparing…":"Review Account deletion"}</Button>:<Panel title="Deletion review"><dl className="detail-grid"><div><dt>Connected apps</dt><dd>{plan.appCount}</dd></div><div><dt>Stored app namespaces</dt><dd>{plan.namespaceCount}</dd></div><div><dt>Backups</dt><dd>{plan.backupCount}</dd></div><div><dt>Grace period</dt><dd>{plan.gracePeriodDays} days</dd></div></dl>{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<div className="field mt-4"><label htmlFor="delete-confirmation">Type DELETE to schedule deletion</label><input id="delete-confirmation" value={confirmation} onChange={(event)=>setConfirmation(event.target.value)} autoComplete="off"/></div><Button className="mt-4" variant="danger" disabled={confirmation!=="DELETE"||request.isPending||Boolean(plan.blockers.length)} onClick={async()=>{const result=await runSensitive(()=>request.mutateAsync({planId:plan.id,confirmation}));if(result)navigate("/account/deletion/status",{replace:true,state:{id:result.id}});}}>{request.isPending?"Scheduling…":"Schedule Account deletion"}</Button></Panel>}
+      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>{setPlanError(false);void planMutation.mutateAsync().catch(()=>setPlanError(true));}}>{planMutation.isPending?"Preparing…":"Review Account deletion"}</Button>:<Panel title="Deletion review"><dl className="detail-grid"><div><dt>Connected apps</dt><dd>{plan.appCount}</dd></div><div><dt>Stored app namespaces</dt><dd>{plan.namespaceCount}</dd></div><div><dt>Backups</dt><dd>{plan.backupCount}</dd></div><div><dt>Grace period</dt><dd>{plan.gracePeriodDays} days</dd></div></dl>{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<div className="field mt-4"><label htmlFor="delete-confirmation">Type DELETE to schedule deletion</label><input id="delete-confirmation" value={confirmation} onChange={(event)=>setConfirmation(event.target.value)} autoComplete="off"/></div><Button className="mt-4" variant="danger" disabled={confirmation!=="DELETE"||request.isPending||Boolean(plan.blockers.length)} onClick={async()=>{const result=await runSensitive(()=>request.mutateAsync({planId:plan.id,confirmation}));if(result)navigate("/account/deletion/status",{replace:true,state:{id:result.id}});}}>{request.isPending?"Scheduling…":"Schedule Account deletion"}</Button></Panel>}
     </div>
   </>;
 }
 
 export function AccountDeletionStatusPage(){
   const q=useAccountDeletion();const cancel=useCancelAccountDeletion();
+  const [cancelError,setCancelError]=useState(false);
   if(q.isLoading)return <Loading/>;
   if(!q.data)return <><PageHeader title="No Account deletion scheduled" description="Your THIEPN Account is active."/><Link className="inline-link" to="/privacy">Back to Privacy</Link></>;
-  const item=q.data;return <><PageHeader title="Account deletion status" description="Lifecycle timing is authoritative on the Account service."/><Panel title={item.status==="pending"?"Account deletion scheduled":"Account deletion"}><dl className="detail-grid"><div><dt>Status</dt><dd>{item.status}</dd></div>{item.scheduledDeletionAt?<div><dt>Scheduled deletion</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(item.scheduledDeletionAt))}</dd></div>:null}{item.cancellableUntil?<div><dt>Cancellation available until</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(item.cancellableUntil))}</dd></div>:null}</dl>{item.status==="pending"?<Button className="mt-4" disabled={cancel.isPending} onClick={()=>void cancel.mutateAsync()}>{cancel.isPending?"Cancelling…":"Cancel Account deletion"}</Button>:null}</Panel></>;
+  const item=q.data;return <><PageHeader title="Account deletion status" description="Lifecycle timing is authoritative on the Account service."/><Panel title={item.status==="pending"?"Account deletion scheduled":"Account deletion"}><dl className="detail-grid"><div><dt>Status</dt><dd>{item.status}</dd></div>{item.scheduledDeletionAt?<div><dt>Scheduled deletion</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(item.scheduledDeletionAt))}</dd></div>:null}{item.cancellableUntil?<div><dt>Cancellation available until</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(item.cancellableUntil))}</dd></div>:null}</dl>{cancelError?<Notice tone="error">Cancellation could not be confirmed. Check the deletion status before leaving this page.</Notice>:null}{item.status==="pending"?<Button className="mt-4" disabled={cancel.isPending} onClick={()=>{setCancelError(false);void cancel.mutateAsync().catch(()=>setCancelError(true));}}>{cancel.isPending?"Cancelling…":"Cancel Account deletion"}</Button>:null}</Panel></>;
 }
 
 export function SignInPage(){
   const service=useAccountService();const navigate=useNavigate();const queryClient=useQueryClient();const location=useLocation();const [error,setError]=useState(false);
   const returnTo=(location.state as {returnTo?:string}|null)?.returnTo??"/";
-  async function signIn(){setError(false);try{const result=await service.auth.signIn(returnTo);if(!result.redirecting){await queryClient.invalidateQueries({queryKey:["auth"]});navigate(returnTo,{replace:true});}}catch{setError(true);}}
+  const [signingIn,setSigningIn]=useState(false);
+  async function signIn(){
+    if(signingIn)return;
+    setError(false);setSigningIn(true);
+    try{
+      const result=await service.auth.signIn(returnTo);
+      if(!result.redirecting){
+        await queryClient.invalidateQueries({queryKey:["auth"]});
+        navigate(returnTo,{replace:true});
+        setSigningIn(false);
+      }
+      // Keep the button disabled while the browser leaves for Google.
+    }catch{setSigningIn(false);setError(true);}
+  }
   return <main className="auth-screen"><section className="auth-card">
     <div className="auth-brand"><strong>THIEPN</strong><span>Account</span><div className="page-color-strip" aria-hidden="true"><span/><span/><span/><span/></div></div>
     <h1>Sign in</h1>
     <p>Continue to your THIEPN Account settings.</p>
     {error?<div className="mt-4"><Notice tone="error">Couldn’t start sign-in. Check the Account backend configuration and try again.</Notice></div>:null}
-    <button className="primary-button auth-button" onClick={signIn}><span className="auth-google-mark" aria-hidden="true">G</span>Continue with Google</button>
+    <button className="primary-button auth-button" disabled={signingIn} aria-busy={signingIn} onClick={()=>void signIn()}><span className="auth-google-mark" aria-hidden="true">G</span>{signingIn?"Redirecting to Google…":"Continue with Google"}</button>
     {import.meta.env.DEV?<p className="mt-4 text-xs text-[var(--muted)]">Development defaults to MockAccountService unless VITE_ACCOUNT_SERVICE_MODE=real.</p>:null}
   </section></main>;
 }

@@ -475,6 +475,9 @@ async function listRealSessions(supabase:ReturnType<typeof getAccountSupabaseCli
 
 export function createApiAccountService():AccountService{
   const supabase=getAccountSupabaseClient();
+  // PKCE codes are single-use. Replaying this callback (e.g. a React effect replay)
+  // must join the existing exchange rather than consume the same code twice.
+  let callbackFlight:Promise<string>|null=null;
 
   async function getUser(){
     const {data,error}=await supabase.auth.getUser();
@@ -556,21 +559,31 @@ export function createApiAccountService():AccountService{
         if(error)throw mapError(error,"OAUTH_START_FAILED");
         return {redirecting:true};
       },
-      async completeCallback(){
-        const code=new URLSearchParams(window.location.search).get("code");
-        if(!code)throw normalizedError("OAUTH_CODE_MISSING","authentication",false);
-        const purpose=sessionStorage.getItem("thiepn.account.authPurpose");
-        const expectedAccountId=sessionStorage.getItem("thiepn.account.expectedAccountId");
-        const {error}=await supabase.auth.exchangeCodeForSession(code);
-        if(error)throw mapError(error,"OAUTH_CALLBACK_FAILED");
-        const user=await getUser();
-        sessionStorage.removeItem("thiepn.account.authPurpose");
-        sessionStorage.removeItem("thiepn.account.expectedAccountId");
-        if(purpose==="reauth"&&expectedAccountId&&user.id!==expectedAccountId){
-          await supabase.auth.signOut({scope:"local"});
-          throw normalizedError("ACCOUNT_CHANGED_DURING_REAUTH","authentication",false);
-        }
-        return consumeReturnTo();
+      completeCallback(){
+        if(callbackFlight)return callbackFlight;
+        const run=async()=>{
+          const params=new URLSearchParams(window.location.search);
+          const codes=params.getAll("code");
+          if(codes.length!==1||!codes[0]||params.has("error"))
+            throw normalizedError("OAUTH_CODE_MISSING","authentication",false);
+          const purpose=sessionStorage.getItem("thiepn.account.authPurpose");
+          const expectedAccountId=sessionStorage.getItem("thiepn.account.expectedAccountId");
+          const {error}=await supabase.auth.exchangeCodeForSession(codes[0]);
+          if(error)throw mapError(error,"OAUTH_CALLBACK_FAILED");
+          const user=await getUser();
+          sessionStorage.removeItem("thiepn.account.authPurpose");
+          sessionStorage.removeItem("thiepn.account.expectedAccountId");
+          if(purpose==="reauth"&&(!expectedAccountId||user.id!==expectedAccountId)){
+            await supabase.auth.signOut({scope:"local"});
+            throw normalizedError("ACCOUNT_CHANGED_DURING_REAUTH","authentication",false);
+          }
+          return consumeReturnTo();
+        };
+        const promise=run();
+        callbackFlight=promise;
+        // A failure must not permanently poison later sign-in attempts.
+        void promise.finally(()=>{if(callbackFlight===promise)callbackFlight=null;}).catch(()=>{});
+        return promise;
       },
       async isRecentlyAuthenticated(){
         const {data,error}=await supabase.rpc("get_thiepn_account_auth_assurance");
