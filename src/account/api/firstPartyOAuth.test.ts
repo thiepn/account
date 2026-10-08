@@ -1,6 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import {
   firstPartyOAuthRedirect,
+  firstPartyOAuthDeniedRedirect,
   firstPartyOAuthRedirectTarget,
   firstPartyOAuthRequest,
   parseFirstPartyOAuthRegistration,
@@ -103,5 +104,18 @@ describe('THIEPN first-party OAuth boundary',()=>{
     {...REQUEST,scope:''},
   ])('rejects malformed request %j',(value)=>{
     expect(()=>firstPartyOAuthRequest(value,ID,OWNER)).toThrow('FIRST_PARTY_OAUTH_UNAVAILABLE');
+  });
+});
+
+describe('explicit first-party reconnect denial',()=>{
+  it('does not leak an already-issued authorization code to a disconnected app',()=>{
+    const approved=REDIRECT+'?code=secret-single-use-code&state=bound-state';
+    const denied=firstPartyOAuthDeniedRedirect(approved,REDIRECT);
+    expect(denied).toBe(REDIRECT+'?state=bound-state&error=access_denied');
+    expect(denied).not.toContain('secret-single-use-code');
+  });
+  it('never sends a denied or approved reconnect result off the registered origin',()=>{
+    expect(()=>firstPartyOAuthDeniedRedirect('https://evil.test/?code=x&state=y',REDIRECT)).toThrow('FIRST_PARTY_OAUTH_UNAVAILABLE');
+    expect(()=>firstPartyOAuthDeniedRedirect(REDIRECT+'?code=a&state=ok&next=x',REDIRECT)).toThrow('FIRST_PARTY_OAUTH_UNAVAILABLE');
   });
 });
