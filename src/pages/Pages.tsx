@@ -13,6 +13,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Notice } from "../components/ui/Notice";
 import { useSensitiveAction } from "../account/useSensitiveAction";
+import { safeThiepnProductUrl } from "../account/api/productUrl";
 import { Boxes, ChevronRight, CloudCog, Laptop2, ShieldCheck } from "lucide-react";
 
 function PageHeader({title,description}:{title:string;description:string}){return <header className="page-header"><div className="page-color-strip" aria-hidden="true"><span/><span/><span/><span/></div><h1>{title}</h1><p>{description}</p></header>;}
@@ -221,6 +222,8 @@ export function SecurityPage(){
     <Panel title="Additional protection" className="ui-panel-accent-mint"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-medium">Two-step verification</p><p className="mt-1 text-sm text-[var(--muted)]">Status is read from your THIEPN Account authentication factors.</p></div><StatusBadge tone={q.data.twoStepVerification==="enabled"?"success":"neutral"}>{q.data.twoStepVerification}</StatusBadge></div></Panel>
     <Panel title="Where you're signed in" description="Browser sessions are grouped by browser and operating system." className="ui-panel-accent-blue">
       <div id="sessions" className="space-y-4 scroll-mt-20">
+        <div className="flex justify-end"><Button variant="secondary" disabled={sessions.isFetching} onClick={()=>void sessions.refetch()}>{sessions.isFetching?"Refreshing…":"Refresh sessions"}</Button></div>
+        {sessions.isError&&sessions.data?<Notice tone="warning">Session refresh failed. The last retrieved session list is shown.</Notice>:null}
         {current?<div className="security-current-session rounded-xl border border-[var(--border)] bg-[var(--surface-hover)] p-4"><div className="flex items-center justify-between gap-4"><div><p className="m-0 text-sm font-semibold">{current.label}</p><p className="mt-1 text-xs text-[var(--muted)]">Current session · active now</p></div><StatusBadge tone="success">Current</StatusBadge></div></div>:null}
         {grouped.length?<div className="device-list">{grouped.map((group)=><div className="device-row" key={`${group.label}-${group.platform}`}><div><strong>{group.label}</strong><small>{group.sessionCount} session{group.sessionCount===1?"":"s"} · Last active {new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(group.lastActivityAt))}</small></div><StatusBadge>Active</StatusBadge></div>)}</div>:<EmptyState title="No other sessions" description="Only your current Account session is active."/>}
         {otherSessionCount>0&&canRevokeOthers?<div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4"><p className="m-0 text-xs text-[var(--muted)]">{otherSessionCount} other active session{otherSessionCount===1?"":"s"} across {grouped.length} browser environment{grouped.length===1?"":"s"}.</p><Button variant="secondary" disabled={revokeOthers.isPending} onClick={()=>{setRevokeError(false);setConfirmRevokeOthers(true);}}>Sign out all other sessions</Button></div>:null}
@@ -295,6 +298,7 @@ export function AppDetailPage(){
   if(q.isError&&!q.data)return <LoadFailure message="Could not verify this app connection." retry={()=>void q.refetch()}/>;
   if(!q.data)return <><PageHeader title="App not connected" description="This application does not have an Account connection."/><Link className="inline-link" to="/apps">Back to connected apps</Link></>;
   const {app,connection}=q.data;
+  const launchUrl=safeThiepnProductUrl(app.productUrl);
   const granted=new Map(connection.grantedPermissions.map((permission)=>[permission.permissionId,permission.status]));
   const mutationPending=grant.isPending||revoke.isPending;
   return <><PageHeader title={app.name} description={app.description}/>
@@ -302,7 +306,7 @@ export function AppDetailPage(){
     {connection.status==="disconnected"?<Notice>This app is disconnected. Existing cloud data, if any, remains separate from the connection.</Notice>:null}
     {connection.status==="limited"?<Notice tone="warning">This app needs an Account access review.</Notice>:null}
     <div className="mt-4 space-y-4">
-      <Panel title="Connection" className="ui-panel-accent-peach integration-accent-card"><dl className="detail-grid"><div><dt>Status</dt><dd><StatusBadge tone={connection.status==="connected"?"success":connection.status==="limited"?"warning":"danger"}>{connection.status}</StatusBadge></dd></div>{connection.connectedAt?<div><dt>Connected</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(connection.connectedAt))}</dd></div>:null}{connection.lastUsedAt?<div><dt>Last used</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(connection.lastUsedAt))}</dd></div>:null}<div><dt>App ID</dt><dd className="font-mono text-sm">{app.id}</dd></div></dl></Panel>
+      <Panel title="Connection" className="ui-panel-accent-peach integration-accent-card"><dl className="detail-grid"><div><dt>Status</dt><dd><StatusBadge tone={connection.status==="connected"?"success":connection.status==="limited"?"warning":"danger"}>{connection.status}</StatusBadge></dd></div>{connection.connectedAt?<div><dt>Connected</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium"}).format(new Date(connection.connectedAt))}</dd></div>:null}{connection.lastUsedAt?<div><dt>Last used</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(connection.lastUsedAt))}</dd></div>:null}<div><dt>App ID</dt><dd className="font-mono text-sm">{app.id}</dd></div></dl>{launchUrl?<a className="ui-button ui-button-secondary no-underline mt-4 inline-flex" href={launchUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open ${app.name} in a new tab`}>Open app</a>:null}</Panel>
       <Panel title="Account access" className="ui-panel-accent-purple" description="Required access is part of the connection. Optional access can be changed independently.">
         <div className="permission-list">{app.availablePermissions.map((permission)=>{const status=granted.get(permission.id)??"denied";const change=async(granted:boolean)=>{
           setActionError(null);
