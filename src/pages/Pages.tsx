@@ -474,6 +474,7 @@ export function ExportPage(){
     catch{setRequestError(true);}
   }
   if(exports.isLoading)return <Loading/>;
+  if(exports.isError&&!exports.data)return <LoadFailure message="Could not retrieve your export history." retry={()=>void exports.refetch()}/>;
   async function download(id:string){
     setDownloadError(false);
     try{
@@ -504,28 +505,52 @@ export function AppPrivacyPage(){
   const {appId}=useParams();const data=useAppData(appId);const planMutation=usePlanAppDataDeletion();const start=useStartAppDataDeletion();const navigate=useNavigate();const runSensitive=useSensitiveAction();
   const [confirmOpen,setConfirmOpen]=useState(false);
   const [planError,setPlanError]=useState(false);
+  const [executionError,setExecutionError]=useState(false);
   if(data.isLoading)return <Loading/>;
+  if(data.isError&&!data.data)return <LoadFailure message="Could not verify the app data before deletion." retry={()=>void data.refetch()}/>;
   if(!data.data)return <><PageHeader title="No cloud data" description="This app currently has no stored cloud-data namespace."/><Link className="inline-link" to="/privacy">Back to Privacy</Link></>;
   const item=data.data;const plan=planMutation.data;
   return <><PageHeader title={`${item.appName} data`} description="Manage this app's cloud-data lifecycle separately from its Account connection."/>
     <div className="space-y-4">
       {planError?<Notice tone="error">The data-deletion plan could not be prepared. No data was deleted.</Notice>:null}
+      {executionError?<Notice tone="error">Deletion could not be confirmed. Recheck the app's data state before attempting another deletion.</Notice>:null}
       <Panel title="Stored cloud data"><dl className="detail-grid"><div><dt>Storage</dt><dd>{new Intl.NumberFormat(undefined,{style:"unit",unit:"megabyte",unitDisplay:"short",maximumFractionDigits:2}).format(item.storageBytes/1_000_000)}</dd></div><div><dt>Connection</dt><dd>Deleting cloud data does not disconnect the app.</dd></div></dl></Panel>
       {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>{setPlanError(false);void planMutation.mutateAsync(item.appId).catch(()=>setPlanError(true));}}>{planMutation.isPending?"Preparing deletion…":"Plan cloud-data deletion"}</Button>:<Panel title="Deletion review">{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<p className="text-sm text-[var(--muted)]">{plan.backupImpact}</p><Button variant="danger" disabled={Boolean(plan.blockers.length)} onClick={()=>setConfirmOpen(true)}>Delete {plan.appName} cloud data</Button></Panel>}
     </div>
-    <ConfirmDialog open={confirmOpen} title={`Delete ${plan?.appName??item.appName} cloud data?`} description="Live cloud data will be removed. Local data on devices is not erased, the app remains connected, and backup handling follows the stated retention policy." confirmLabel="Delete cloud data" danger pending={start.isPending} onCancel={()=>setConfirmOpen(false)} onConfirm={async()=>{if(!plan)return;const result=await runSensitive(()=>start.mutateAsync(plan.id));if(!result)return;setConfirmOpen(false);navigate("/privacy",{replace:true});}}/>
+    <ConfirmDialog open={confirmOpen} title={`Delete ${plan?.appName??item.appName} cloud data?`} description="Live cloud data will be removed. Local data on devices is not erased, the app remains connected, and backup handling follows the stated retention policy." confirmLabel="Delete cloud data" danger pending={start.isPending} onCancel={()=>setConfirmOpen(false)} onConfirm={async()=>{
+      if(!plan)return;
+      setExecutionError(false);
+      try{
+        const result=await runSensitive(()=>start.mutateAsync(plan.id));
+        if(!result)return;
+        setConfirmOpen(false);
+        navigate("/privacy",{replace:true});
+      }catch{
+        setConfirmOpen(false);
+        setExecutionError(true);
+        void data.refetch();
+      }
+    }}/>
   </>;
 }
 
 export function AccountDeletionPage(){
   const planMutation=usePlanAccountDeletion();const request=useRequestAccountDeletion();const navigate=useNavigate();const runSensitive=useSensitiveAction();const [confirmation,setConfirmation]=useState("");
   const [planError,setPlanError]=useState(false);
+  const [executionError,setExecutionError]=useState(false);
   const plan=planMutation.data;
   return <><PageHeader title="Delete THIEPN Account" description="Schedule deletion of your Account and managed cloud data."/>
     <div className="space-y-4">
       {planError?<Notice tone="error">The Account deletion review could not be loaded. No deletion was scheduled.</Notice>:null}
+      {executionError?<Notice tone="error">Deletion scheduling could not be confirmed. Check the Account deletion status before retrying.</Notice>:null}
       <Notice tone="warning">Account deletion uses a seven-day grace period. The legacy immediate-delete RPCs are disabled for signed-in clients.</Notice>
-      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>{setPlanError(false);void planMutation.mutateAsync().catch(()=>setPlanError(true));}}>{planMutation.isPending?"Preparing…":"Review Account deletion"}</Button>:<Panel title="Deletion review"><dl className="detail-grid"><div><dt>Connected apps</dt><dd>{plan.appCount}</dd></div><div><dt>Stored app namespaces</dt><dd>{plan.namespaceCount}</dd></div><div><dt>Backups</dt><dd>{plan.backupCount}</dd></div><div><dt>Grace period</dt><dd>{plan.gracePeriodDays} days</dd></div></dl>{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<div className="field mt-4"><label htmlFor="delete-confirmation">Type DELETE to schedule deletion</label><input id="delete-confirmation" value={confirmation} onChange={(event)=>setConfirmation(event.target.value)} autoComplete="off"/></div><Button className="mt-4" variant="danger" disabled={confirmation!=="DELETE"||request.isPending||Boolean(plan.blockers.length)} onClick={async()=>{const result=await runSensitive(()=>request.mutateAsync({planId:plan.id,confirmation}));if(result)navigate("/account/deletion/status",{replace:true,state:{id:result.id}});}}>{request.isPending?"Scheduling…":"Schedule Account deletion"}</Button></Panel>}
+      {!plan?<Button variant="danger" disabled={planMutation.isPending} onClick={()=>{setPlanError(false);void planMutation.mutateAsync().catch(()=>setPlanError(true));}}>{planMutation.isPending?"Preparing…":"Review Account deletion"}</Button>:<Panel title="Deletion review"><dl className="detail-grid"><div><dt>Connected apps</dt><dd>{plan.appCount}</dd></div><div><dt>Stored app namespaces</dt><dd>{plan.namespaceCount}</dd></div><div><dt>Backups</dt><dd>{plan.backupCount}</dd></div><div><dt>Grace period</dt><dd>{plan.gracePeriodDays} days</dd></div></dl>{plan.blockers.map((blocker)=><Notice key={blocker} tone="error">{blocker}</Notice>)}{plan.warnings.map((warning)=><Notice key={warning} tone="warning">{warning}</Notice>)}<div className="field mt-4"><label htmlFor="delete-confirmation">Type DELETE to schedule deletion</label><input id="delete-confirmation" value={confirmation} onChange={(event)=>setConfirmation(event.target.value)} autoComplete="off"/></div><Button className="mt-4" variant="danger" disabled={confirmation!=="DELETE"||request.isPending||Boolean(plan.blockers.length)} onClick={async()=>{
+      setExecutionError(false);
+      try{
+        const result=await runSensitive(()=>request.mutateAsync({planId:plan.id,confirmation}));
+        if(result)navigate("/account/deletion/status",{replace:true,state:{id:result.id}});
+      }catch{setExecutionError(true);}
+    }}>{request.isPending?"Scheduling…":"Schedule Account deletion"}</Button></Panel>}
     </div>
   </>;
 }
@@ -534,6 +559,7 @@ export function AccountDeletionStatusPage(){
   const q=useAccountDeletion();const cancel=useCancelAccountDeletion();
   const [cancelError,setCancelError]=useState(false);
   if(q.isLoading)return <Loading/>;
+  if(q.isError&&!q.data)return <LoadFailure message="Could not verify the Account deletion status." retry={()=>void q.refetch()}/>;
   if(!q.data)return <><PageHeader title="No Account deletion scheduled" description="Your THIEPN Account is active."/><Link className="inline-link" to="/privacy">Back to Privacy</Link></>;
   const item=q.data;return <><PageHeader title="Account deletion status" description="Lifecycle timing is authoritative on the Account service."/><Panel title={item.status==="pending"?"Account deletion scheduled":"Account deletion"}><dl className="detail-grid"><div><dt>Status</dt><dd>{item.status}</dd></div>{item.scheduledDeletionAt?<div><dt>Scheduled deletion</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(item.scheduledDeletionAt))}</dd></div>:null}{item.cancellableUntil?<div><dt>Cancellation available until</dt><dd>{new Intl.DateTimeFormat(undefined,{dateStyle:"long",timeStyle:"short"}).format(new Date(item.cancellableUntil))}</dd></div>:null}</dl>{cancelError?<Notice tone="error">Cancellation could not be confirmed. Check the deletion status before leaving this page.</Notice>:null}{item.status==="pending"?<Button className="mt-4" disabled={cancel.isPending} onClick={()=>{setCancelError(false);void cancel.mutateAsync().catch(()=>setCancelError(true));}}>{cancel.isPending?"Cancelling…":"Cancel Account deletion"}</Button>:null}</Panel></>;
 }
