@@ -91,10 +91,8 @@ describe('first-party Account browser bootstrap', () => {
     const request=sso.initialize();
     const duplicate=sso.initialize();
     expect(duplicate).toBe(request);
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(document.querySelector('iframe')).not.toBeNull());
     const frame=document.querySelector('iframe')!;
-    expect(frame).not.toBeNull();
     sendProbe(frame,valid);
     await expect(request).resolves.toEqual({status:'redirecting'});
     expect(navigate).toHaveBeenCalledTimes(1);
