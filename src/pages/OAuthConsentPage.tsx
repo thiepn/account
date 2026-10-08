@@ -47,6 +47,21 @@ export function OAuthConsentPage(){
     }
   }
 
+  if(details&&'kind' in details&&details.kind==='recipe-chatgpt'){
+    return <section className="max-w-2xl space-y-5">
+      <h1 className="text-2xl font-semibold">Connect ChatGPT to THIEPN Recipe</h1>
+      <p>Allow ChatGPT to search your private cookbook, read recipes and create new private recipe drafts on your behalf.</p>
+      <p>ChatGPT cannot edit or delete existing recipes. Recipe writes require an explicit save request; potential duplicates are surfaced before another copy is made.</p>
+      <p>Ingredient matches check ingredient types, not quantities. Your other THIEPN app data is not shared by this connection.</p>
+      <p className="text-sm text-[var(--muted)]">Requested OAuth scopes: {details.scopes.join(', ')}</p>
+      <div className="flex gap-3">
+        <button className="primary-button" disabled={busy} onClick={()=>void decide(true)}>Connect Recipe</button>
+        <button className="secondary-button" disabled={busy} onClick={()=>void decide(false)}>Decline</button>
+      </div>
+      <p role="status">{busy?'Checking the authorization request…':message}</p>
+    </section>;
+  }
+
   if(details&&'kind' in details&&details.kind==='finance-chatgpt'){
     return <section className="max-w-2xl space-y-5">
       <h1 className="text-2xl font-semibold">Connect ChatGPT to THIEPN Finance</h1>
