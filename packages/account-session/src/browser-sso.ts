@@ -182,7 +182,7 @@ export function createThiepnBrowserSso(
     catch (error) { leaving = false; throw error; }
   }
 
-  async function initialize(): Promise<ThiepnBrowserSsoStatus> {
+  function initialize(): Promise<ThiepnBrowserSsoStatus> {
     if (leaving) return { status: 'redirecting' };
     if (initializeFlight) return initializeFlight;
 
