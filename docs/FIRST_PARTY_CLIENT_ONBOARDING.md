@@ -2,6 +2,8 @@
 
 THIEPN first-party browser apps use Account's OAuth 2.1 Authorization Code + PKCE flow. OAuth client creation is a production control-plane action, not an ordinary CI action.
 
+**For new application developers:** see [NEW_APP_INTEGRATION.md](./NEW_APP_INTEGRATION.md) for the single shared SDK, automatic sign-in, app-local session, privacy and test contract. A new app onboarding must not require editing the Account sign-in or consent frontend.
+
 ## Non-negotiable rule
 
 A workflow that **creates** an OAuth client through dynamic client registration (DCR) must be manual-only.
