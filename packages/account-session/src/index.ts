@@ -180,11 +180,13 @@ function tokenResponse(value: unknown): TokenResponse {
     typeof row.access_token !== 'string' ||
     row.access_token.length < 20 ||
     typeof row.refresh_token !== 'string' ||
-    row.refresh_token.length < 20 ||
+    row.refresh_token.length < 8 ||
+    row.refresh_token.length > 4096 ||
+    !/^[A-Za-z0-9._~-]+$/.test(row.refresh_token) ||
     typeof row.expires_in !== 'number' ||
     !Number.isFinite(row.expires_in) ||
     row.expires_in <= 0 ||
-    row.token_type !== 'bearer'
+    (typeof row.token_type !== 'string' || row.token_type.toLowerCase() !== 'bearer')
   ) {
     throw new Error('ACCOUNT_TOKEN_RESPONSE_INVALID');
   }
