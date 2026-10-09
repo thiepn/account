@@ -185,6 +185,70 @@ describe('THIEPN account session contract', () => {
   });
 });
 
+describe('Supabase OAuth short refresh tokens',()=>{
+  it('persists a successful PKCE callback with a twelve-character refresh token',async()=>{
+    const localStorage=new MemoryStorage(),sessionStorage=new MemoryStorage();
+    const clientId='123e4567-e89b-42d3-a456-426614174000';
+    const callback='https://room.thiepn.dev/auth/callback/';
+    const calls:string[]=[];
+    const transport:typeof fetch=async(input,init)=>{
+      const url=String(input);calls.push(url);
+      if(url.endsWith('/oauth/token')){
+        const form=new URLSearchParams(String(init?.body));
+        expect(form.get('grant_type')).toBe('authorization_code');
+        expect(form.get('client_id')).toBe(clientId);
+        expect(form.get('code_verifier')?.length).toBeGreaterThanOrEqual(43);
+        return new Response(JSON.stringify({
+          access_token:'realistic-long-account-access-token-value',
+          refresh_token:'AbCdEfGh1234',
+          expires_in:3600,token_type:'Bearer',scope:'openid email profile',
+        }),{status:200,headers:{'Content-Type':'application/json'}});
+      }
+      if(url.endsWith('/auth/v1/user')){
+        return new Response(JSON.stringify({id:clientId,email:'person@example.test'}),
+          {status:200,headers:{'Content-Type':'application/json'}});
+      }
+      return new Response(null,{status:404});
+    };
+    const session=createThiepnAccountSession({
+      issuer:'https://example.supabase.co',
+      publishableKey:'sb_publishable_abcdefghijklmnopqrstuvwxyz',
+      clientId,redirectUri:callback,storageKey:'thiepn:room:test-v1',
+      authPolicy:'required',localStorage,sessionStorage,fetch:transport,
+    });
+    const state=new URL(await session.authorizationUrl()).searchParams.get('state');
+    expect(state?.length).toBeGreaterThanOrEqual(43);
+    expect(await session.completeCallback({href:callback+'?code=one-use-code&state='+state,hash:''})).toEqual({
+      status:'signed-in',id:clientId,email:'person@example.test',
+    });
+    expect(calls.filter(c=>c.endsWith('/oauth/token'))).toHaveLength(1);
+    expect(calls.filter(c=>c.endsWith('/auth/v1/user'))).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem('thiepn:room:test-v1:tokens')??'{}').refreshToken).toBe('AbCdEfGh1234');
+  });
+
+  it('rejects whitespace in refresh tokens without saving an invalid session',async()=>{
+    const localStorage=new MemoryStorage(),sessionStorage=new MemoryStorage();
+    const session=createThiepnAccountSession({
+      issuer:'https://example.supabase.co',
+      publishableKey:'sb_publishable_abcdefghijklmnopqrstuvwxyz',
+      clientId:'123e4567-e89b-42d3-a456-426614174000',
+      redirectUri:'https://room.thiepn.dev/auth/callback/',
+      storageKey:'thiepn:room:invalid-test-v1',authPolicy:'required',
+      localStorage,sessionStorage,
+      fetch:async()=>new Response(JSON.stringify({
+        access_token:'realistic-long-account-access-token-value',
+        refresh_token:'broken token',expires_in:3600,token_type:'bearer'
+      }),{status:200}),
+    });
+    const state=new URL(await session.authorizationUrl()).searchParams.get('state');
+    const result=await session.completeCallback({
+      href:'https://room.thiepn.dev/auth/callback/?code=one-use-code&state='+state,hash:'',
+    });
+    expect(result).toEqual({status:'unavailable',code:'ACCOUNT_CODE_EXCHANGE_FAILED'});
+    expect(localStorage.getItem('thiepn:room:invalid-test-v1:tokens')).toBeNull();
+  });
+});
+
 describe('Account refresh reliability',()=>{
   const storageKey='thiepn:test-resilience:v1';
   const initial={
